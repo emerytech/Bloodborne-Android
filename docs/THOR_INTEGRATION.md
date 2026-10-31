@@ -32,7 +32,7 @@ API 28 targeting is preserved from upstream because native executable loading re
 
 Device evidence must distinguish app startup, native game rendering, lower-screen switching, background restoration, Atlas UI, and actual in-game live-map/controller testing. Title/menu startup does not prove combat or save migration. Do not distribute generated game code or personal saves.
 
-Before a public APK release, audit redistribution notices and assemble matching corresponding source for all redistributed native GPL components, including pinned submodules and native dependency sources/build scripts. The source branch and local signed preview alone are not a completed public binary release.
+The preview release ships a tracked-source archive including the four pinned submodules, matching FFmpeg 7.1.5, ps4-pkg-tools 45baedaa, and FEX 9fbdc00b source archives, native dependency fetch/build scripts and patches. RELEASE-SOURCE-INPUTS.json records source URLs/checksums and unchanged native input hashes. Original notices are also provided alongside the APK. The preview remains separate from a stable gameplay-validated release.
 
 ## Device check — 2026-10-31
 

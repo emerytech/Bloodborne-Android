@@ -12,7 +12,7 @@ The Bloodborne Android port, compiler, runtime and Hunter’s Atlas are the work
 
 ## Setup
 
-1. Install the integrated APK when available from this fork’s releases. Do not install an upstream APK over this fork.
+1. Install **[Bloodborne-Thor-Companion-0.4.0-preview.apk](https://github.com/emerytech/Bloodborne-Android/releases/download/thor-v0.4.0-preview.1/Bloodborne-Thor-Companion-0.4.0-preview.apk)** from the [integrated preview release](https://github.com/emerytech/Bloodborne-Android/releases/tag/thor-v0.4.0-preview.1). Do not install an upstream APK over this fork.
 2. Open **Bloodborne · Thor Companion**. Grant storage access and choose your own extracted **Bloodborne 1.09** folder containing `eboot.bin`, `sce_module`, and `sce_sys`.
 3. Existing compatible `aot/` code is imported automatically. Otherwise follow upstream’s on-device or PC rebuild instructions using your own game files.
 4. Use the lower screen’s **Controls**, **Artwork**, and **Help** buttons. The game menu’s **Thor companion** entry also offers hide/show and **Hunter’s Atlas map**. Choose controls/artwork in that menu to switch Atlas off; re-enable the map through Hunter’s Atlas whenever you want it.
@@ -22,6 +22,8 @@ No game, saves, game artwork, generated game code, or Lossless Scaling DLL is in
 ### Existing installations and saves
 
 This preview uses **com.emerytech.bloodbornethor**, a separate package from upstream and the standalone companion. Existing apps and their private saves remain installed and untouched. **It does not automatically import your existing save.** Do not remove the working game app to make room for it. Save migration is not part of this preview.
+
+See the [step-by-step install guide](docs/THOR_INSTALL.md). Only the APK is installed; source and license downloads are optional reference files.
 
 ## Build from source
 
