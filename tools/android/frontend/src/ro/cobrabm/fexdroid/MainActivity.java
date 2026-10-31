@@ -89,6 +89,7 @@ public final class MainActivity extends Activity {
     private ModsDialog mods;
     /** Hunter's Atlas: the live map on the second screen (AtlasScreen), its menu (AtlasDialog) and the drawer row. */
     private AtlasScreen atlas;
+    private ThorCompanionScreen thorCompanion;
     private AtlasDialog atlasDialog;
     private LinearLayout atlasItem;
     /** Native CPU (the recompiled game code, required to play): its status/import page, its drawer row, the rebuild dialog (RebuildDialog:
@@ -142,6 +143,7 @@ public final class MainActivity extends Activity {
         BASE=FILES+"/bbport";
         drivers=new DriverManager(new File(FILES));
         atlas=new AtlasScreen(this,new File(BASE));
+        thorCompanion=new ThorCompanionScreen(this, () -> gameDir, () -> atlas.enabled() && atlas.installed() && !AtlasScreen.MODE_FLOAT.equals(atlas.mode()), () -> askGameFolder(gameDir!=null), () -> atlas.setEnabled(false), this::showAtlas);
         online=new OnlineSettings(this);
         GameInstaller.Host host=modsHost();
         mods=new ModsDialog(this,host); installer=new GameInstaller(this,host);
@@ -342,6 +344,7 @@ public final class MainActivity extends Activity {
             new SettingsDialog(this,new File(BASE,"bbport.ini"),this::restartGame).showCheats(online.playingOnline());
         });
         modsItem=menuItem("ic_extension","Mods","",() -> { closeDrawer(); mods.show(); });
+        menuItem("ic_map","Thor companion","Controls, artwork and full disclosure",() -> { closeDrawer(); thorCompanion.settings(); });
         atlasItem=menuItem("ic_map","Hunter's Atlas","",() -> { closeDrawer(); showAtlas(); });
         onlineItem=menuItem("ic_online","Online","",() -> { closeDrawer(); showOnline(); });
         nativeCpuItem=menuItem("ic_cpu","Native CPU (required)","",() -> { closeDrawer(); nativeCpu.show(); });
@@ -391,7 +394,8 @@ public final class MainActivity extends Activity {
             .setNegativeButton("Cancel",null).setPositiveButton("Quit",(dialog,which) -> finish()).show());
 
         section("App");
-        updateItem=menuItem("ic_refresh","Check for updates","Version "+updater.version(),() -> updater.check());
+        menuItem("ic_online","Sponsor · Couchside","Purchase Couchside unlocks · couchside.tv",() -> { closeDrawer(); ThorCompanionScreen.openSponsor(this); });
+        updateItem=menuItem("ic_refresh","Fork releases","Version "+updater.version(),() -> startActivity(new Intent(Intent.ACTION_VIEW,android.net.Uri.parse("https://github.com/emerytech/Bloodborne-Android/releases"))));
         menuItem("ic_bug_report","Report a problem","Save logs for a GitHub issue",() -> { closeDrawer(); report.show(); });
         menuItem("ic_tune","Debug options","Performance switches for testing",() -> {
             closeDrawer();
@@ -402,7 +406,7 @@ public final class MainActivity extends Activity {
         String version="";
         try { version=" "+getPackageManager().getPackageInfo(getPackageName(),0).versionName; }
         catch (Exception ignored) {}
-        TextView about=text("Bloodborne for Android"+version,12,0xff8e9097);
+        TextView about=text("Bloodborne · Thor integrated"+version,12,0xff8e9097);
         about.setPadding(dp(24),dp(8),dp(14),0);
         drawer.addView(about,new LinearLayout.LayoutParams(-1,-2));
         TextView credit=text("by ducvd89@gmail.com\ngithub.com/ducvd89/Bloodborne-Android",10,0xff6f7178);
@@ -730,6 +734,7 @@ public final class MainActivity extends Activity {
         applyPause();
         if (updater!=null) updater.resumed(); // back from the "install unknown apps" setting
         if (atlas!=null) atlas.resume();
+        if (thorCompanion!=null) thorCompanion.resume();
     }
     /** The game's activity moved to another display or its display changed (also reported by the display listener):
      *  the map's second screen is chosen again (never the display the game is on). */
@@ -738,6 +743,7 @@ public final class MainActivity extends Activity {
         if (atlas!=null) main.post(() -> { if (!destroyed) atlas.displaysChanged(); });
     }
     @Override protected void onStop() {
+        if (thorCompanion!=null) thorCompanion.stop();
         if (atlas!=null) atlas.stop();
         super.onStop();
     }
@@ -1940,7 +1946,7 @@ public final class MainActivity extends Activity {
         if (p!=null) { p.destroyForcibly(); try { p.waitFor(); } catch (InterruptedException e) { Thread.currentThread().interrupt(); } }
     }
     @Override protected void onDestroy() {
-        destroyed=true; if (nativeCpu!=null) nativeCpu.close(); if (rebuild!=null) rebuild.close(); AotBuildService.unlisten(buildListener); if (atlasDialog!=null) atlasDialog.close(); if (onlineDialog!=null) onlineDialog.close(); if (atlas!=null) atlas.destroy(); if (driverDownload!=null) driverDownload.close(); if (mods!=null) mods.close(); if (installer!=null) installer.close(); if (updater!=null) updater.close(); pad.reset(); rumble.close(); audio.stop(); main.removeCallbacksAndMessages(null);
+        destroyed=true; if (thorCompanion!=null) thorCompanion.destroy(); if (nativeCpu!=null) nativeCpu.close(); if (rebuild!=null) rebuild.close(); AotBuildService.unlisten(buildListener); if (atlasDialog!=null) atlasDialog.close(); if (onlineDialog!=null) onlineDialog.close(); if (atlas!=null) atlas.destroy(); if (driverDownload!=null) driverDownload.close(); if (mods!=null) mods.close(); if (installer!=null) installer.close(); if (updater!=null) updater.close(); pad.reset(); rumble.close(); audio.stop(); main.removeCallbacksAndMessages(null);
         stopGame();
         worker.shutdownNow(); super.onDestroy();
     }

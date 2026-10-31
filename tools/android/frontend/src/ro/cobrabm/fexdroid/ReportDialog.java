@@ -27,7 +27,7 @@ final class ReportDialog {
         File base();
         File downloads();
     }
-    static final String ISSUES="https://github.com/ducvd89/Bloodborne-Android/issues/new";
+    static final String ISSUES="https://github.com/emerytech/Bloodborne-Android/issues/new";
     private static final int URL_LIMIT=6000;
     private final Activity activity;
     private final Host host;

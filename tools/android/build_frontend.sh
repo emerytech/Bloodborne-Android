@@ -18,19 +18,7 @@ if [[ -n ${BB_RUNTIME_ARCHIVE:-} ]]; then
     cp "$BB_RUNTIME_ARCHIVE" "$out/assets/runtime.payload"
     cp "${BB_RUNTIME_ARCHIVE%.tar.gz}.sha256" "$out/assets/runtime.sha256"
 fi
-# Use the user's own Bloodborne icon locally; game art is not committed to this repository.
-python3 - "$out" <<'PY'
-import os, sys
-from pathlib import Path
-from PIL import Image
-out = Path(sys.argv[1])
-icon = Path('game/CUSA03173/sce_sys/icon0.dds')
-if os.environ.get('BB_RUNTIME_ARCHIVE') and not icon.exists():
-    raise SystemExit('Release build needs the user-owned game icon at game/CUSA03173/sce_sys/icon0.dds')
-if icon.exists():
-    (out/'res/drawable/icon.xml').unlink(missing_ok=True)
-    Image.open(icon).save(out/'res/drawable/icon.png')
-PY
+# The integrated fork always uses its original neutral vector icon; never package game artwork.
 # The GPU drivers inside the APK (assets/drivers/, installed by the app's Automatic GPU driver choice:
 # AutoDriver.java, BundledDrivers.java) with their licence notices appended to THIRD_PARTY_LICENSES.txt.
 # fetch_bundled_drivers.sh downloads and checks the pinned zips (BB_SKIP_DRIVERS=1: a development build

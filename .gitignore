@@ -42,3 +42,9 @@ patches.json
 *.wcp
 *.keystore
 *.jks
+.gradle/
+local.properties
+/build/
+
+__pycache__/
+*.pyc
