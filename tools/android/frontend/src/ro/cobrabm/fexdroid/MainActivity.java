@@ -394,7 +394,8 @@ public final class MainActivity extends Activity {
             .setNegativeButton("Cancel",null).setPositiveButton("Quit",(dialog,which) -> finish()).show());
 
         section("App");
-        menuItem("ic_online","Sponsor · Couchside","Purchase Couchside unlocks · couchside.tv",() -> { closeDrawer(); ThorCompanionScreen.openSponsor(this); });
+        menuItem("ic_online","Couchside","Ultimate Living Room Gaming PC Remote · couchside.tv",() -> { closeDrawer(); ThorCompanionScreen.openSponsor(this); });
+        menuItem("ic_claude_token","Support this Thor build","Optional tip · ko-fi.com/ets3d",() -> { closeDrawer(); ThorCompanionScreen.openKofi(this); });
         updateItem=menuItem("ic_refresh","Fork releases","Version "+updater.version(),() -> startActivity(new Intent(Intent.ACTION_VIEW,android.net.Uri.parse("https://github.com/emerytech/Bloodborne-Android/releases"))));
         menuItem("ic_bug_report","Report a problem","Save logs for a GitHub issue",() -> { closeDrawer(); report.show(); });
         menuItem("ic_tune","Debug options","Performance switches for testing",() -> {

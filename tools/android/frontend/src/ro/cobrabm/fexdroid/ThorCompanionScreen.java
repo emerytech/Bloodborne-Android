@@ -127,8 +127,8 @@ final class ThorCompanionScreen implements DisplayManager.DisplayListener {
                 + "there is no separate companion app or installer. Controls are a reference, not touch input. Artwork is read from your own files. "
                 + "The panel closes when you leave the game activity and returns when you resume. Enable Hunter’s Atlas to use its second-screen map instead. Choosing controls or artwork from the Thor companion menu switches the map off; it can be enabled again in Hunter’s Atlas. "
                 + "No game assets, saves or generated native game code are bundled. This preview has its own private save/settings storage; "
-                + "it does not import or replace another installed Bloodborne app.\n\nSponsor: Couchside · Purchase optional Couchside unlocks at couchside.tv.")
-            .setNeutralButton("Sponsor · Couchside", (dialog, which) -> openSponsor(context))
+                + "it does not import or replace another installed Bloodborne app.\n\nCouchside: the ultimate living room gaming PC remote at couchside.tv. Please support ducvd89\u2019s Bloodborne port via the link by the title. Optional tip for this Thor integration: ko-fi.com/ets3d.")
+            .setNeutralButton("Couchside", (dialog, which) -> openSponsor(context))
             .setPositiveButton("Got it", null).show();
     }
     static void openSponsor(Context context) {
@@ -136,8 +136,18 @@ final class ThorCompanionScreen implements DisplayManager.DisplayListener {
             android.net.Uri.parse("https://couchside.tv"));
         try { context.startActivity(intent); }
         catch (android.content.ActivityNotFoundException noBrowser) {
-            new AlertDialog.Builder(context).setTitle("Couchside sponsor")
-                .setMessage("Purchase Couchside unlocks at https://couchside.tv")
+            new AlertDialog.Builder(context).setTitle("Couchside")
+                .setMessage("The ultimate living room gaming PC remote at https://couchside.tv")
+                .setPositiveButton("OK", null).show();
+        }
+    }
+    static void openKofi(Context context) {
+        android.content.Intent intent = new android.content.Intent(android.content.Intent.ACTION_VIEW,
+            android.net.Uri.parse("https://ko-fi.com/ets3d"));
+        try { context.startActivity(intent); }
+        catch (android.content.ActivityNotFoundException noBrowser) {
+            new AlertDialog.Builder(context).setTitle("Support")
+                .setMessage("Optional tip for this Thor integration at https://ko-fi.com/ets3d")
                 .setPositiveButton("OK", null).show();
         }
     }

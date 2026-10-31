@@ -12,7 +12,7 @@ The Bloodborne Android port, compiler, runtime and Hunter’s Atlas are the work
 
 ## Setup
 
-1. Install **[Bloodborne-Thor-Companion-0.5.0-preview.apk](https://github.com/emerytech/Bloodborne-Android/releases/download/thor-v0.5.0-preview.1/Bloodborne-Thor-Companion-0.5.0-preview.apk)** from the [integrated preview release](https://github.com/emerytech/Bloodborne-Android/releases/tag/thor-v0.5.0-preview.1). Do not install an upstream APK over this fork.
+1. Install **[Bloodborne-Thor-Companion-0.6.0-preview.apk](https://github.com/emerytech/Bloodborne-Android/releases/download/thor-v0.6.0-preview.1/Bloodborne-Thor-Companion-0.6.0-preview.apk)** from the [integrated preview release](https://github.com/emerytech/Bloodborne-Android/releases/tag/thor-v0.6.0-preview.1). Do not install an upstream APK over this fork.
 2. Open **Bloodborne · Thor Companion**. Grant storage access and choose your own extracted **Bloodborne 1.09** folder containing `eboot.bin`, `sce_module`, and `sce_sys`.
 3. Existing compatible `aot/` code is imported automatically. Otherwise follow upstream’s on-device or PC rebuild instructions using your own game files.
 4. Use the lower screen’s **Controls**, **Artwork**, and **Help** buttons. The game menu’s **Thor companion** entry also offers hide/show and **Hunter’s Atlas map**. Choose controls/artwork in that menu to switch Atlas off; re-enable the map through Hunter’s Atlas whenever you want it.
@@ -43,9 +43,9 @@ A signed release requires `SIGNING_KEYSTORE`, `SIGNING_STORE_PASSWORD`, `SIGNING
 
 Open **Mods → Browse / download mods** to search the starter catalog. Direct downloads are checksum-checked, preview shared files, and install switched off. Author-page entries use the website’s normal download flow and the browser’s Import archive action. All starter mods are marked not gameplay-tested on Thor. [Details, credits and limits](docs/THOR_MOD_BROWSER.md).
 
-## Sponsor
+## Support and Couchside
 
-The app menu and companion Help include a **Sponsor · Couchside** link to [couchside.tv](https://couchside.tv) for optional Couchside unlock purchases. Checkout opens in your browser.
+This fork is free. If the upstream port helps you, support its author ducvd89 via the **Buy me a Claude token** link by the title (PayPal). The app menu and companion Help also link **[Couchside](https://couchside.tv)** — the ultimate living room gaming PC remote — and, as an optional tip for this Thor integration, **[Ko-fi](https://ko-fi.com/ets3d)**. No purchase is required and nothing is gated. Links open in your browser.
 
 ## License and credits
 
