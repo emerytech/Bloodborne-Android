@@ -43,7 +43,7 @@ import org.json.JSONObject;
  *  and mods_enabled and restarts the game: the app (ModManager.apply) reads those when the game starts. Rows take the gamepad
  *  (D-pad, A, B) and touch. */
 final class ModsDialog {
-    static final int REQUEST_FOLDER=4, REQUEST_ARCHIVE=5, REQUEST_STORAGE=6;
+    static final int REQUEST_FOLDER=4, REQUEST_ARCHIVE=5, REQUEST_STORAGE=6, REQUEST_BROWSER_ARCHIVE=12;
     static final String DEFAULT_DIR="/storage/emulated/0/Bloodborne/mods";
     private static final int TEXT=0xffe8dfc9, GOLD=0xffc6ad76, WARN=0xffe5a04b;
 
@@ -94,6 +94,7 @@ final class ModsDialog {
     private boolean pendingShow;
     // UI-thread state behind the dialog:
     private AlertDialog dialog;
+    private ModBrowser browser;
     private PkgProgressDialog progress;
     private LinearLayout rows;
     private TextView folderText, status;
@@ -176,6 +177,12 @@ final class ModsDialog {
         TextView note=new TextView(activity); note.setTextSize(13); note.setAlpha(0.8f);
         note.setText("Mods must be made for Bloodborne 1.09. Mods that change the game's files take effect when the game restarts.");
         box.addView(note);
+        Button browse=new Button(activity); browse.setAllCaps(false); browse.setText("Browse / download mods");
+        browse.setOnClickListener(v -> {
+            if (busy || loading || shown==null || shown.error!=null) return;
+            openBrowser();
+        });
+        box.addView(browse);
         folderText=new TextView(activity); folderText.setTextSize(13); folderText.setTextColor(TEXT);
         folderText.setPadding(0,dp(10),0,0);
         box.addView(folderText);
@@ -217,9 +224,26 @@ final class ModsDialog {
         reload();
     }
 
+    private void openBrowser() {
+        if (browser!=null) browser.close();
+        browser=new ModBrowser(activity,new ModBrowser.Host() {
+            public ModManager manager(){ return host.manager(); }
+            public File config(){ return new File(host.baseDir(),"mods.json"); }
+            public boolean destroyed(){ return !live(); }
+            public void installed(){ last=null; dirty=true; reload(); }
+            public void importArchive(){
+                Intent pick=new Intent(Intent.ACTION_OPEN_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE).setType("*/*");
+                try { host.pick(pick,REQUEST_BROWSER_ARCHIVE); }
+                catch(Exception e){host.toast("No file picker available.");}
+            }
+        });
+        browser.show();
+    }
+
     /** Ends everything (also when the activity is destroyed): cancels an install, closes the dialogs. */
     void close() {
         closed=true; cancel.set(true);
+        if (browser!=null) { browser.close(); browser=null; }
         if (progress!=null) progress.dismiss();
         try { if (dialog!=null && dialog.isShowing()) dialog.dismiss(); } catch (Exception ignored) {}
     }
@@ -234,7 +258,8 @@ final class ModsDialog {
     /** Picker results: the mods folder, the archive to install. */
     void onResult(int code,int result,Intent data) {
         if (!live() || result!=Activity.RESULT_OK || data==null || data.getData()==null) return;
-        if (code==REQUEST_FOLDER) {
+        if (code==REQUEST_BROWSER_ARCHIVE) { openBrowser(); browser.importArchive(data.getData()); }
+        else if (code==REQUEST_FOLDER) {
             File dir=host.folderOf(data.getData());
             if (dir==null) { host.toast("That folder cannot be used."); return; }
             setFolder(dir.getPath().equals(DEFAULT_DIR) ? "" : dir.getPath());

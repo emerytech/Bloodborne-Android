@@ -1,6 +1,6 @@
-Bloodborne · Thor Companion 0.4.0 — integrated preview
+Bloodborne · Thor Companion 0.5.0 — integrated preview
 
-Install ONE file: Bloodborne-Thor-Companion-0.4.0-preview.apk.
+Install ONE file: Bloodborne-Thor-Companion-0.5.0-preview.apk.
 The source archive and license files are for reference; do not install/unpack those on your Thor.
 
 1. Download the APK onto your AYN Thor and open it. Allow installation from that browser/file manager if Android asks.
@@ -8,7 +8,8 @@ The source archive and license files are for reference; do not install/unpack th
 3. Compatible native game code in aot/ is imported automatically. If absent, use the app’s “Build on this phone” flow or upstream’s PC Rebuild Tool with your own game files. The on-phone build can take several minutes and use substantial memory, battery and produce heat. See README.upstream.md for the full guide.
 4. The game opens above. Hunter’s Companion controls/artwork appear below. Tap Controls, Artwork or Help on the lower screen.
 5. To use the built-in map instead: game side menu → Thor companion → Hunter’s Atlas map → enable Map. Its optional map pack downloads separately. The companion yields to Atlas. Choose Show controls below / Show artwork below in Thor companion to switch back.
-6. Sponsor · Couchside in the game menu or Help opens couchside.tv for optional Couchside unlock purchases.
+6. Mods → Browse / download mods adds search, direct downloads and archive previews. New browser installs stay OFF until enabled in Mods and applied/restarted. Website entries require the author’s download flow, then Browse → Import archive. All starter mods have unverified Thor gameplay compatibility.
+7. Sponsor · Couchside in the game menu or Help opens couchside.tv for optional Couchside unlock purchases.
 
 IMPORTANT
 - No game files, game-derived AOT library, saves, or game artwork are included in this APK. Supply your own game. No separate companion APK is needed.

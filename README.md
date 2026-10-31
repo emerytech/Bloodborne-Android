@@ -12,7 +12,7 @@ The Bloodborne Android port, compiler, runtime and Hunter’s Atlas are the work
 
 ## Setup
 
-1. Install **[Bloodborne-Thor-Companion-0.4.0-preview.apk](https://github.com/emerytech/Bloodborne-Android/releases/download/thor-v0.4.0-preview.1/Bloodborne-Thor-Companion-0.4.0-preview.apk)** from the [integrated preview release](https://github.com/emerytech/Bloodborne-Android/releases/tag/thor-v0.4.0-preview.1). Do not install an upstream APK over this fork.
+1. Install **[Bloodborne-Thor-Companion-0.5.0-preview.apk](https://github.com/emerytech/Bloodborne-Android/releases/download/thor-v0.5.0-preview.1/Bloodborne-Thor-Companion-0.5.0-preview.apk)** from the [integrated preview release](https://github.com/emerytech/Bloodborne-Android/releases/tag/thor-v0.5.0-preview.1). Do not install an upstream APK over this fork.
 2. Open **Bloodborne · Thor Companion**. Grant storage access and choose your own extracted **Bloodborne 1.09** folder containing `eboot.bin`, `sce_module`, and `sce_sys`.
 3. Existing compatible `aot/` code is imported automatically. Otherwise follow upstream’s on-device or PC rebuild instructions using your own game files.
 4. Use the lower screen’s **Controls**, **Artwork**, and **Help** buttons. The game menu’s **Thor companion** entry also offers hide/show and **Hunter’s Atlas map**. Choose controls/artwork in that menu to switch Atlas off; re-enable the map through Hunter’s Atlas whenever you want it.
@@ -38,6 +38,10 @@ cd Bloodborne-Android
 The build recompiles all frontend Java from this repository. It reuses only checksum-pinned native runtime assets/libraries from official upstream 2.2.0, and verifies all 38 upstream JVM dependency JARs against a tracked SHA-256 lock. It does not extract upstream Java classes or resources. See [build inputs and licensing](docs/THOR_INTEGRATION.md).
 
 A signed release requires `SIGNING_KEYSTORE`, `SIGNING_STORE_PASSWORD`, `SIGNING_KEY_ALIAS`, and `SIGNING_KEY_PASSWORD`, then `./tools/thor/build.sh assembleRelease`. Without signing variables Gradle produces an unsigned release. Keep keys and passwords out of Git.
+
+## Mods
+
+Open **Mods → Browse / download mods** to search the starter catalog. Direct downloads are checksum-checked, preview shared files, and install switched off. Author-page entries use the website’s normal download flow and the browser’s Import archive action. All starter mods are marked not gameplay-tested on Thor. [Details, credits and limits](docs/THOR_MOD_BROWSER.md).
 
 ## Sponsor
 

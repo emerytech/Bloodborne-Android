@@ -21,3 +21,4 @@ jobs:
           log-accepted-android-sdk-licenses: false
       - run: sdkmanager 'platforms;android-35' 'build-tools;35.0.0'
       - run: ./tools/thor/build.sh assembleDebug lintRelease
+      - run: tests/thor-mod-browser/run.sh

@@ -42,7 +42,7 @@ public final class MainActivity extends Activity {
     private String FILES, BASE;
     /** The game (e.g. CUSA03173, with eboot.bin) in shared storage, chosen by the player. */
     private String gameDir;
-    private static final int REQUEST_FOLDER=1, REQUEST_STORAGE=2, REQUEST_DRIVER=3, REQUEST_SAVES=9, REQUEST_DLL=10; // 4-6: ModsDialog, 7-8: GameInstaller, 11: NativeCpuDialog
+    private static final int REQUEST_FOLDER=1, REQUEST_STORAGE=2, REQUEST_DRIVER=3, REQUEST_SAVES=9, REQUEST_DLL=10; // 4-6: ModsDialog, 7-8: GameInstaller, 11: NativeCpuDialog, 12: mod browser import
     private SurfaceHolder pendingHolder;
     private final Handler main=new Handler(Looper.getMainLooper());
     private final ExecutorService worker=Executors.newSingleThreadExecutor();
@@ -1146,7 +1146,7 @@ public final class MainActivity extends Activity {
             if (dll!=null) copyDll(dll,done); else { immersive(); if (done!=null) done.run(); }
             return;
         }
-        if (code==ModsDialog.REQUEST_FOLDER || code==ModsDialog.REQUEST_ARCHIVE) { mods.onResult(code,result,data); return; }
+        if (code==ModsDialog.REQUEST_FOLDER || code==ModsDialog.REQUEST_ARCHIVE || code==ModsDialog.REQUEST_BROWSER_ARCHIVE) { mods.onResult(code,result,data); return; }
         if (code==NativeCpuDialog.REQUEST_FILES) { nativeCpu.onResult(result,data); return; }
         if (code==REQUEST_SAVES) {
             if (result==RESULT_OK && data!=null && data.getData()!=null) restoreSaves(folderOf(data.getData()));
