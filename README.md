@@ -2,7 +2,7 @@
 
 A personal, unofficial fork of [ducvd89/Bloodborne-Android](https://github.com/ducvd89/Bloodborne-Android), based on **android-2.2.0**, that builds Hunter's Companion into the game app for the **AYN Thor**. One installed app, one launch icon, one game-folder selection: the game runs on the upper screen and a touchscreen companion runs on the lower screen.
 
-![The lower-screen companion: tabs for the game menu, controls, artwork, live status and Couchside](https://github.com/emerytech/Bloodborne-Android/releases/download/thor-v0.8.0-preview.1/thor-0.8-panel.gif)
+![The lower-screen companion: tabs for the game menu, controls, artwork, live status and Couchside](https://github.com/emerytech/Bloodborne-Android/releases/download/thor-v0.9.0-preview.1/thor-0.8-panel.gif)
 
 > **This is not a copy of the game.** No game, saves, game artwork, generated game code, or Lossless Scaling DLL is included. You provide your own game files, extracted from your own legally-owned disc. This is not an official Sony or FromSoftware product.
 
@@ -31,7 +31,7 @@ The Bloodborne Android port, compiler, runtime and Hunter's Atlas are the work o
 
 ### 1. Install the app
 
-1. Download **[Bloodborne-Thor-Companion-0.8.0-preview.apk](https://github.com/emerytech/Bloodborne-Android/releases/download/thor-v0.8.0-preview.1/Bloodborne-Thor-Companion-0.8.0-preview.apk)** from the [latest release](https://github.com/emerytech/Bloodborne-Android/releases/latest) onto your Thor.
+1. Download **[Bloodborne-Thor-Companion-0.9.0-preview.apk](https://github.com/emerytech/Bloodborne-Android/releases/download/thor-v0.9.0-preview.1/Bloodborne-Thor-Companion-0.9.0-preview.apk)** from the [latest release](https://github.com/emerytech/Bloodborne-Android/releases/latest) onto your Thor.
 2. Open it and install. Android will ask you to allow installing from your browser or file manager the first time — allow it, then install.
 3. **Do not install an upstream APK over this fork.** This build uses its own package (`com.emerytech.bloodbornethor`), so it sits beside any existing Bloodborne app without touching it.
 
@@ -80,7 +80,7 @@ The lower screen is a touchscreen. **Artwork is the home view** — tap a tab to
 
 | Game menu on the lower screen | Live status |
 |---|---|
-| ![Game menu mirrored to the bottom touchscreen](https://github.com/emerytech/Bloodborne-Android/releases/download/thor-v0.8.0-preview.1/thor-0.8-menu.png) | ![Live CPU, RAM, battery and temperature](https://github.com/emerytech/Bloodborne-Android/releases/download/thor-v0.8.0-preview.1/thor-0.8-status.png) |
+| ![Game menu mirrored to the bottom touchscreen](https://github.com/emerytech/Bloodborne-Android/releases/download/thor-v0.9.0-preview.1/thor-0.8-menu.png) | ![Live CPU, RAM, battery and temperature](https://github.com/emerytech/Bloodborne-Android/releases/download/thor-v0.9.0-preview.1/thor-0.8-status.png) |
 
 Upstream's **Hunter's Atlas** second-screen map is preserved. The game menu's **Thor companion** entry offers hide/show and the Atlas map; turning the map on hands the lower screen to Atlas until you turn it off again.
 

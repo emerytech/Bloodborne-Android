@@ -63,7 +63,7 @@ final class ThorCompanionScreen implements DisplayManager.DisplayListener {
     private final Activity owner;
     private final Supplier<String> gameDirectory;
     private final BooleanSupplier atlasUsesScreen;
-    private final Runnable chooseFolder, choosePanel, openMap;
+    private final Runnable chooseFolder, choosePanel, openMap, openMapDirect;
     private final DisplayManager displays;
     private final SharedPreferences prefs;
     private final Handler main = new Handler(Looper.getMainLooper());
@@ -90,8 +90,8 @@ final class ThorCompanionScreen implements DisplayManager.DisplayListener {
         }
     };
 
-    ThorCompanionScreen(Activity owner, Supplier<String> directory, BooleanSupplier atlas, Runnable chooseFolder, Runnable choosePanel, Runnable openMap) {
-        this.owner = owner; gameDirectory = directory; atlasUsesScreen = atlas; this.chooseFolder = chooseFolder; this.choosePanel = choosePanel; this.openMap = openMap;
+    ThorCompanionScreen(Activity owner, Supplier<String> directory, BooleanSupplier atlas, Runnable chooseFolder, Runnable choosePanel, Runnable openMap, Runnable openMapDirect) {
+        this.owner = owner; gameDirectory = directory; atlasUsesScreen = atlas; this.chooseFolder = chooseFolder; this.choosePanel = choosePanel; this.openMap = openMap; this.openMapDirect = openMapDirect;
         displays = (DisplayManager)owner.getSystemService(Context.DISPLAY_SERVICE);
         prefs = owner.getSharedPreferences("bloodborne", Context.MODE_PRIVATE);
     }
@@ -264,7 +264,7 @@ final class ThorCompanionScreen implements DisplayManager.DisplayListener {
             LinearLayout tabs1 = new LinearLayout(getContext()); content.addView(tabs1);
             button(tabs1, "Menu", () -> toggle("menu"));
             button(tabs1, "Controls", () -> toggle("controls"));
-            button(tabs1, "Atlas", () -> openMap.run());
+            button(tabs1, "Atlas", () -> openMapDirect.run());
             LinearLayout tabs2 = new LinearLayout(getContext()); content.addView(tabs2);
             button(tabs2, "Status", () -> toggle("status"));
             button(tabs2, "Couchside", () -> toggle("couchside"));

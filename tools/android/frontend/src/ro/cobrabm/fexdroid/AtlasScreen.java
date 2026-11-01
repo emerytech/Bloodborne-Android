@@ -819,7 +819,20 @@ final class AtlasScreen implements DisplayManager.DisplayListener {
                 | WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON | WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED);
             w.setBackgroundDrawable(new ColorDrawable(Color.rgb(24,22,19)));
             setCanceledOnTouchOutside(false);
-            setContentView(owner.makeView(getContext()));
+            // The map, plus a top-right "back to companion" button: tapping it turns the Atlas off, which hands the
+            // lower screen back to the Hunter's Companion panel (its artwork home). The window is non-focusable but
+            // still touchable, and the button sits above the map so its corner taps are caught before the map's.
+            android.widget.FrameLayout root=new android.widget.FrameLayout(getContext());
+            root.addView(owner.makeView(getContext()),new android.widget.FrameLayout.LayoutParams(-1,-1));
+            int d=Math.round(12*getContext().getResources().getDisplayMetrics().density);
+            android.widget.Button back=new android.widget.Button(getContext());
+            back.setText("← Companion"); back.setAllCaps(false); back.setTextSize(13); back.setTextColor(0xffe5ddcd);
+            back.setBackgroundTintList(android.content.res.ColorStateList.valueOf(0xd21b1d24));
+            back.setOnClickListener(v -> owner.setEnabled(false));
+            android.widget.FrameLayout.LayoutParams blp=new android.widget.FrameLayout.LayoutParams(-2,-2,android.view.Gravity.TOP|android.view.Gravity.END);
+            blp.setMargins(d,d,d,d); back.setLayoutParams(blp);
+            root.addView(back);
+            setContentView(root);
             w.setLayout(WindowManager.LayoutParams.MATCH_PARENT,WindowManager.LayoutParams.MATCH_PARENT);
             refreshMode();
         }

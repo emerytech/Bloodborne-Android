@@ -3,7 +3,7 @@
 import concurrent.futures, hashlib, io, json, shutil, subprocess, tarfile, urllib.request
 from pathlib import Path
 ROOT=Path(__file__).resolve().parents[2]
-OUT=ROOT/'build/thor-release-0.8.0'; OUT.mkdir(parents=True,exist_ok=True)
+OUT=ROOT/'build/thor-release-0.9.0'; OUT.mkdir(parents=True,exist_ok=True)
 CACHE=ROOT/'.local-deps/thor-source'; CACHE.mkdir(parents=True,exist_ok=True)
 SOURCES={
  'ps4-pkg-tools-45baedaa.tar.gz':'https://codeload.github.com/xXJSONDeruloXx/ps4-pkg-tools/tar.gz/45baedaa29b8da42b3c6fe912800d2fa4119834b',
@@ -24,10 +24,10 @@ with concurrent.futures.ThreadPoolExecutor(max_workers=3) as pool: inputs=dict(p
 commit=subprocess.check_output(['git','rev-parse','HEAD'],cwd=ROOT,text=True).strip()
 if subprocess.check_output(['git','status','--porcelain'],cwd=ROOT,text=True).strip():raise SystemExit('Commit source changes before packaging.')
 apk=ROOT/'build/outputs/apk/release/BloodborneThorIntegrated-release.apk'
-name='Bloodborne-Thor-Companion-0.8.0-preview.apk'
+name='Bloodborne-Thor-Companion-0.9.0-preview.apk'
 shutil.copy2(apk,OUT/name)
 # git archive only: no ignored game files, local builds, keys, caches, saves or logs.
-source=OUT/'Bloodborne-Thor-Companion-0.8.0-source.tar.gz'
+source=OUT/'Bloodborne-Thor-Companion-0.9.0-source.tar.gz'
 with tarfile.open(source,'w:gz') as out:
  def add_git(repo,prefix):
   data=subprocess.check_output(['git','archive','HEAD'],cwd=repo)
