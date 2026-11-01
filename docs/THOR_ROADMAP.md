@@ -16,7 +16,7 @@ files, nothing copyrighted is bundled.**
 
 ## More Bloodborne
 
-- [ ] **"More Bloodborne" links shelf** on the start screen — links to companion fan works (Bloodborne PSX by Lilith Walther, Yarntown by Max Mraz). Links only; nothing bundled.
+- [x] **"Other Bloodborne Stuff I Love" links shelf** — a Menu item (and dialog) linking the fan demakes Bloodborne PSX (Lilith Walther) and Yarntown (Max Mraz) on itch.io. Links only, nothing bundled, not affiliated. (0.17.0)
 - [ ] **Yarntown playable on the Thor (future, pending permission)** — Yarntown is a [Solarus](https://www.solarus-games.org/)-engine quest (Windows/Mac/Linux today, no Android build). Solarus is open-source (GPL) and can target Android, so a "Play Yarntown" tile is possible *with Max Mraz's permission to use his quest* (his itch source has no license yet). Path once permitted: a Solarus Android runtime + a bring-your-own-quest tile launched from the start menu, crediting Max. **Blocked on reaching out to Max Mraz.**
 
 ## App
