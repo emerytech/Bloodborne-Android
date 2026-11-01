@@ -8,7 +8,7 @@ files, nothing copyrighted is bundled.**
 
 - [x] **Trophy case (Phase 1)** — boss tracker reading the game's event flags via the Atlas shm; live unlock flourish + vibrate. (0.14.0)
 - [x] **Decouple the trophy case from the map** — flags flow whenever the Atlas pack is *installed*, not only when the game is launched with the map on. The map display stays gated by its own toggle. (0.14.1)
-- [ ] **Expand the trophy list** — past the 16 story/DLC bosses toward the full 40 PS4 trophies (endings, covenants, chalice dungeons, insight milestones); needs sourcing a few more event-flag ids.
+- [x] **Expand to the full trophy list** — all 40 PS4 trophies (CUSA03173), read from the game's own trophy save (shadPS4 `<trophyconf>` XML) rather than Atlas boss flags, so endings, weapons, runes, chalices and every boss are tracked. Each trophy carries its official name, description and grade; tap a trophy to read what it is. Supersedes the event-flag boss tracker. (0.15.0)
 - [ ] **Journal / notes tab** — scratchpad for NPC quests and item locations.
 - [ ] **Save auto-backup rotation** — periodic backups keeping the last N (manual backup already ships).
 - [ ] **Screenshot gallery** on the companion.
@@ -21,5 +21,5 @@ files, nothing copyrighted is bundled.**
 
 ## App
 
-- [ ] **New app icon** — gothic / title-font styled, combining a gothic letterform with the blood-moon motif, replacing the plain two-box mark.
+- [x] **New app icon** — gold "HC" monogram over a blood-red moon, replacing the plain two-box mark. (0.14.0)
 - [ ] Verify the 0.13.1 lid-pause persists-on-reopen on a real lid close.
