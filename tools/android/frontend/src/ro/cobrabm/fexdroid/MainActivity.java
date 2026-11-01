@@ -414,7 +414,7 @@ public final class MainActivity extends Activity {
         section("App");
         menuItem("ic_online","Couchside","Ultimate Living Room Gaming PC Remote · couchside.tv",() -> { closeDrawer(); ThorCompanionScreen.openSponsor(this); });
         menuItem("ic_claude_token","Support this Thor build","Optional tip · ko-fi.com/ets3d",() -> { closeDrawer(); ThorCompanionScreen.openKofi(this); });
-        updateItem=menuItem("ic_refresh","Fork releases","Version "+updater.version(),() -> startActivity(new Intent(Intent.ACTION_VIEW,android.net.Uri.parse("https://github.com/emerytech/Bloodborne-Android/releases"))));
+        updateItem=menuItem("ic_refresh","Check for updates","Version "+updater.version(),() -> { closeDrawer(); updater.check(); });
         menuItem("ic_bug_report","Report a problem","Save logs for a GitHub issue",() -> { closeDrawer(); report.show(); });
         menuItem("ic_tune","Debug options","Performance switches for testing",() -> {
             closeDrawer();
