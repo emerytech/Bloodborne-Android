@@ -287,6 +287,26 @@ final class ThorCompanionScreen implements DisplayManager.DisplayListener {
                 .setPositiveButton("OK", null).show();
         }
     }
+    /** "More Bloodborne": links to free fan games on itch.io. Links only — nothing is bundled, and these are not
+     *  affiliated with this app, FromSoftware or Sony. Supports their creators by sending players to their pages. */
+    static void openMoreBloodborne(Context context) {
+        new AlertDialog.Builder(context).setTitle("Other Bloodborne Stuff I Love")
+            .setMessage("Free fan games inspired by Bloodborne — PC only, not affiliated with this app and nothing is bundled here. "
+                + "Visit their creators' pages on itch.io:\n\n"
+                + "• Bloodborne PSX — a PS1-style demake by Lilith Walther\n"
+                + "• Yarntown — a top-down demake by Max Mraz")
+            .setNeutralButton("Bloodborne PSX", (dialog, which) -> openLink(context, "https://b0tster.itch.io/bbpsx", "Bloodborne PSX"))
+            .setNegativeButton("Yarntown", (dialog, which) -> openLink(context, "https://maxatrillionator.itch.io/yarntown", "Yarntown"))
+            .setPositiveButton("Close", null).show();
+    }
+    /** Opens a URL in the browser, with a fallback dialog showing the address when no browser handles it. */
+    static void openLink(Context context, String url, String title) {
+        android.content.Intent intent = new android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(url));
+        try { context.startActivity(intent); }
+        catch (android.content.ActivityNotFoundException noBrowser) {
+            new AlertDialog.Builder(context).setTitle(title).setMessage(url).setPositiveButton("OK", null).show();
+        }
+    }
     @Override public void onDisplayAdded(int id) { refresh(); }
     @Override public void onDisplayRemoved(int id) { refresh(); }
     @Override public void onDisplayChanged(int id) { refresh(); }
