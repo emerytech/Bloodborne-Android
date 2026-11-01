@@ -63,7 +63,7 @@ final class ThorCompanionScreen implements DisplayManager.DisplayListener {
     private final Activity owner;
     private final Supplier<String> gameDirectory;
     private final BooleanSupplier atlasUsesScreen;
-    private final Runnable chooseFolder, choosePanel, openMap;
+    private final Runnable chooseFolder, choosePanel, openMap, openMapDirect;
     private final DisplayManager displays;
     private final SharedPreferences prefs;
     private final Handler main = new Handler(Looper.getMainLooper());
@@ -77,8 +77,21 @@ final class ThorCompanionScreen implements DisplayManager.DisplayListener {
         @Override public void run() { if (resumed && !destroyed) { refresh(); main.postDelayed(this, 1000); } }
     };
 
-    ThorCompanionScreen(Activity owner, Supplier<String> directory, BooleanSupplier atlas, Runnable chooseFolder, Runnable choosePanel, Runnable openMap) {
-        this.owner = owner; gameDirectory = directory; atlasUsesScreen = atlas; this.chooseFolder = chooseFolder; this.choosePanel = choosePanel; this.openMap = openMap;
+    // Perf overlay: sample the game's presented-frame counter (BbPresent) at vsync for FPS / average / 1% low.
+    private final float[] frameMs = new float[600];
+    private int frameMsCount, frameMsHead;
+    private long lastFrames = -1, lastFrameNanos;
+    private boolean sampling;
+    private final android.view.Choreographer.FrameCallback frameCb = new android.view.Choreographer.FrameCallback() {
+        @Override public void doFrame(long frameTimeNanos) {
+            if (!resumed || destroyed) { sampling = false; return; }
+            sampleFrame(frameTimeNanos);
+            android.view.Choreographer.getInstance().postFrameCallback(this);
+        }
+    };
+
+    ThorCompanionScreen(Activity owner, Supplier<String> directory, BooleanSupplier atlas, Runnable chooseFolder, Runnable choosePanel, Runnable openMap, Runnable openMapDirect) {
+        this.owner = owner; gameDirectory = directory; atlasUsesScreen = atlas; this.chooseFolder = chooseFolder; this.choosePanel = choosePanel; this.openMap = openMap; this.openMapDirect = openMapDirect;
         displays = (DisplayManager)owner.getSystemService(Context.DISPLAY_SERVICE);
         prefs = owner.getSharedPreferences("bloodborne", Context.MODE_PRIVATE);
     }
@@ -90,6 +103,7 @@ final class ThorCompanionScreen implements DisplayManager.DisplayListener {
         resumed = true;
         if (!listening) { displays.registerDisplayListener(this, main); listening = true; }
         main.removeCallbacks(tick); tick.run();
+        startSampling();
     }
     void stop() { resumed = false; main.removeCallbacks(tick); dismiss(); }
     void destroy() {
@@ -99,6 +113,37 @@ final class ThorCompanionScreen implements DisplayManager.DisplayListener {
     }
     private void dismiss() {
         if (panel != null) { panel.dismiss(); panel = null; imagePath = null; imageGeneration++; }
+    }
+    private void startSampling() {
+        if (sampling) return;
+        sampling = true; lastFrames = -1; frameMsCount = 0; frameMsHead = 0;
+        android.view.Choreographer.getInstance().postFrameCallback(frameCb);
+    }
+    private void sampleFrame(long nowNanos) {
+        long f = BbPresent.framesIfLoaded();
+        if (f <= 0) { lastFrames = f; lastFrameNanos = nowNanos; frameMsCount = 0; return; }
+        if (lastFrames >= 0 && f > lastFrames && nowNanos > lastFrameNanos) {
+            long nf = f - lastFrames;
+            float per = (nowNanos - lastFrameNanos) / 1_000_000f / nf;
+            if (per > 0 && per < 1000) { int push = (int) Math.min(nf, 4); for (int i = 0; i < push; i++) pushFrameMs(per); }
+        }
+        lastFrames = f; lastFrameNanos = nowNanos;
+    }
+    private void pushFrameMs(float ms) {
+        frameMs[frameMsHead] = ms; frameMsHead = (frameMsHead + 1) % frameMs.length;
+        if (frameMsCount < frameMs.length) frameMsCount++;
+    }
+    /** {current, average, 1%-low} FPS from the frame-time window, or null until enough frames are sampled. */
+    float[] perfStats() {
+        int n = frameMsCount; if (n < 15) return null;
+        int cap = frameMs.length, start = (n < cap) ? 0 : frameMsHead;
+        float[] a = new float[n];
+        for (int i = 0; i < n; i++) a[i] = frameMs[(start + i) % cap];
+        int k = Math.min(30, n); float cs = 0; for (int i = n - k; i < n; i++) cs += a[i]; float curMs = cs / k;
+        float[] s = a.clone(); java.util.Arrays.sort(s);
+        float sum = 0; for (float v : s) sum += v; float avgMs = sum / n;
+        float p99 = s[Math.min(n - 1, (int) Math.ceil(0.99 * n) - 1)];
+        return new float[]{ 1000f / curMs, 1000f / avgMs, 1000f / p99 };
     }
     void refresh() {
         if (destroyed || !resumed || !prefs.getBoolean("thor_companion_enabled", true) || atlasUsesScreen.getAsBoolean()) { dismiss(); return; }
@@ -219,7 +264,7 @@ final class ThorCompanionScreen implements DisplayManager.DisplayListener {
             LinearLayout tabs1 = new LinearLayout(getContext()); content.addView(tabs1);
             button(tabs1, "Menu", () -> toggle("menu"));
             button(tabs1, "Controls", () -> toggle("controls"));
-            button(tabs1, "Artwork", () -> showArt());
+            button(tabs1, "Atlas", () -> openMapDirect.run());
             LinearLayout tabs2 = new LinearLayout(getContext()); content.addView(tabs2);
             button(tabs2, "Status", () -> toggle("status"));
             button(tabs2, "Couchside", () -> toggle("couchside"));
@@ -337,8 +382,13 @@ final class ThorCompanionScreen implements DisplayManager.DisplayListener {
             if (statusText == null) return;
             StringBuilder sb = new StringBuilder();
             sb.append(new SimpleDateFormat("EEE  h:mm:ss a", Locale.getDefault()).format(new Date())).append('\n');
+            float[] p = perfStats();
+            if (p != null) sb.append(String.format(Locale.US, "FPS   %.0f   avg %.0f   1%% low %.0f\n", p[0], p[1], p[2]));
+            else sb.append("FPS   —  (start the game)\n");
             int cpu = readCpuPercent();
-            sb.append("CPU   ").append(cpu < 0 ? "—" : cpu + "%").append('\n');
+            sb.append("CPU   ").append(cpu < 0 ? "—" : cpu + "%");
+            String soc = readSocTemp(); if (soc != null) sb.append("      SOC ").append(soc);
+            sb.append('\n');
             try {
                 ActivityManager am = (ActivityManager) getContext().getSystemService(Context.ACTIVITY_SERVICE);
                 ActivityManager.MemoryInfo mi = new ActivityManager.MemoryInfo(); am.getMemoryInfo(mi);
@@ -352,11 +402,25 @@ final class ThorCompanionScreen implements DisplayManager.DisplayListener {
                     int pct = lvl < 0 ? -1 : Math.round(lvl * 100f / Math.max(1, scale));
                     int t = b.getIntExtra(BatteryManager.EXTRA_TEMPERATURE, Integer.MIN_VALUE);
                     sb.append("BATT  ").append(pct < 0 ? "—" : pct + "%");
-                    if (t != Integer.MIN_VALUE) sb.append("   ").append(String.format(Locale.US, "%.1f°C", t / 10f));
+                    if (t != Integer.MIN_VALUE) sb.append("     ").append(String.format(Locale.US, "%.1f°C", t / 10f));
                     sb.append('\n');
                 }
             } catch (Exception ignored) { }
             statusText.setText(sb.toString().trim());
+        }
+        String readSocTemp() {
+            float max = Float.NaN;
+            try {
+                java.io.File[] zs = new java.io.File("/sys/class/thermal").listFiles();
+                if (zs != null) for (java.io.File z : zs) {
+                    if (!z.getName().startsWith("thermal_zone")) continue;
+                    try (BufferedReader r = new BufferedReader(new FileReader(new java.io.File(z, "temp")))) {
+                        String t = r.readLine();
+                        if (t != null) { float c = Long.parseLong(t.trim()) / 1000f; if (c > 20 && c < 150 && (Float.isNaN(max) || c > max)) max = c; }
+                    } catch (Exception ignored) { }
+                }
+            } catch (Exception ignored) { }
+            return Float.isNaN(max) ? null : String.format(Locale.US, "%.0f°C", max);
         }
         int readCpuPercent() {
             try (BufferedReader r = new BufferedReader(new FileReader("/proc/stat"))) {

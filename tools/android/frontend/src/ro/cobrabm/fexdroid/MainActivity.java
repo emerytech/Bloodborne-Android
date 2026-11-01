@@ -146,7 +146,7 @@ public final class MainActivity extends Activity {
         BASE=FILES+"/bbport";
         drivers=new DriverManager(new File(FILES));
         atlas=new AtlasScreen(this,new File(BASE));
-        thorCompanion=new ThorCompanionScreen(this, () -> gameDir, () -> atlas.enabled() && atlas.installed() && !AtlasScreen.MODE_FLOAT.equals(atlas.mode()), () -> askGameFolder(gameDir!=null), () -> atlas.setEnabled(false), this::showAtlas);
+        thorCompanion=new ThorCompanionScreen(this, () -> gameDir, () -> atlas.enabled() && atlas.installed() && !AtlasScreen.MODE_FLOAT.equals(atlas.mode()), () -> askGameFolder(gameDir!=null), () -> atlas.setEnabled(false), this::showAtlas, () -> atlas.setEnabled(true));
         online=new OnlineSettings(this);
         GameInstaller.Host host=modsHost();
         mods=new ModsDialog(this,host); installer=new GameInstaller(this,host);
