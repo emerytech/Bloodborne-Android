@@ -219,7 +219,7 @@ final class ThorCompanionScreen implements DisplayManager.DisplayListener {
             LinearLayout tabs1 = new LinearLayout(getContext()); content.addView(tabs1);
             button(tabs1, "Menu", () -> toggle("menu"));
             button(tabs1, "Controls", () -> toggle("controls"));
-            button(tabs1, "Artwork", () -> showArt());
+            button(tabs1, "Atlas", () -> openMap.run());
             LinearLayout tabs2 = new LinearLayout(getContext()); content.addView(tabs2);
             button(tabs2, "Status", () -> toggle("status"));
             button(tabs2, "Couchside", () -> toggle("couchside"));
