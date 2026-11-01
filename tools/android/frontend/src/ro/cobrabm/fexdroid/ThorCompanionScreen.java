@@ -98,6 +98,26 @@ final class ThorCompanionScreen implements DisplayManager.DisplayListener {
     /** The game menu rows to mirror on the lower screen. The top swipe-drawer keeps its own copy; both share
      *  these Runnables, so an action behaves the same from either screen. */
     void setMenu(List<MenuAction> actions) { menu = actions; }
+    /** Set by MainActivity: applies a one-tap graphics preset (writes bbport.ini and restarts the game). */
+    private java.util.function.Consumer<String> presetApplier;
+    void setPresetApplier(java.util.function.Consumer<String> f) { presetApplier = f; }
+    /** Highest valid SoC thermal-zone reading in °C, or NaN. Shared by the panel Status tab and the on-game HUD. */
+    static float readSocTempC() {
+        float max = Float.NaN;
+        try {
+            File[] zs = new File("/sys/class/thermal").listFiles();
+            if (zs != null) for (File z : zs) {
+                if (!z.getName().startsWith("thermal_zone")) continue;
+                try (BufferedReader r = new BufferedReader(new FileReader(new File(z, "temp")))) {
+                    String t = r.readLine();
+                    if (t != null) { float c = Long.parseLong(t.trim()) / 1000f; if (c > 20 && c < 150 && (Float.isNaN(max) || c > max)) max = c; }
+                } catch (Exception ignored) { }
+            }
+        } catch (Exception ignored) { }
+        return max;
+    }
+    /** {current, average, 1%-low} FPS from the companion's frame-time window, or null — read by the on-game HUD. */
+    float[] fpsForHud() { return perfStats(); }
     void resume() {
         if (destroyed) return;
         resumed = true;
@@ -197,7 +217,7 @@ final class ThorCompanionScreen implements DisplayManager.DisplayListener {
         new AlertDialog.Builder(context).setTitle("One app · two screens")
             .setMessage(DISCLOSURE + "\n\nThis lower panel is built into the game app. It uses the game folder you already selected; "
                 + "there is no separate companion app or installer. The lower screen is a touchscreen: use its tabs for the game Menu, "
-                + "Controls reference, Artwork, live Status and Couchside. The physical gamepad still drives the game on the upper screen. "
+                + "Controls reference, Artwork, live Status and Tune (the on-game HUD and quick graphics presets). The physical gamepad still drives the game on the upper screen. "
                 + "The top swipe-in drawer stays available too, so the same game menu is reachable from either screen. "
                 + "The panel closes when you leave the game activity and returns when you resume. Enable Hunter’s Atlas to use its second-screen map instead. Choosing controls or artwork from the Thor companion menu switches the map off; it can be enabled again in Hunter’s Atlas. "
                 + "No game assets, saves or generated native game code are bundled. This preview has its own private save/settings storage; "
@@ -230,8 +250,9 @@ final class ThorCompanionScreen implements DisplayManager.DisplayListener {
     @Override public void onDisplayChanged(int id) { refresh(); }
 
     private final class CompanionPresentation extends Presentation {
-        ImageView background; View shade; TextView body; ScrollView scroll; View couchsideBox;
+        ImageView background; View shade; TextView body; ScrollView scroll; View tuneBox;
         ScrollView menuBox; LinearLayout menuList; View statusBox; TextView statusText;
+        FrameGraphView graph; Button hudBtn;
         boolean statusVisible; long lastCpuBusy = -1, lastCpuTotal = -1;
         String activeTab = "art";
         CompanionPresentation(Context context, Display display) { super(context, display); }
@@ -267,7 +288,7 @@ final class ThorCompanionScreen implements DisplayManager.DisplayListener {
             button(tabs1, "Atlas", () -> openMapDirect.run());
             LinearLayout tabs2 = new LinearLayout(getContext()); content.addView(tabs2);
             button(tabs2, "Status", () -> toggle("status"));
-            button(tabs2, "Couchside", () -> toggle("couchside"));
+            button(tabs2, "Tune", () -> toggle("tune"));
             button(tabs2, "Help", () -> help(owner));
             scroll = new ScrollView(getContext()); body = text("", 16); body.setPadding(0, dp(6), 0, dp(6)); scroll.addView(body);
             content.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1));
@@ -276,8 +297,8 @@ final class ThorCompanionScreen implements DisplayManager.DisplayListener {
             content.addView(menuBox, new LinearLayout.LayoutParams(-1, 0, 1));
             statusBox = buildStatusBox(); statusBox.setVisibility(View.GONE);
             content.addView(statusBox, new LinearLayout.LayoutParams(-1, 0, 1));
-            couchsideBox = buildCouchsideBox(); couchsideBox.setVisibility(View.GONE);
-            content.addView(couchsideBox, new LinearLayout.LayoutParams(-1, 0, 1));
+            tuneBox = buildTuneBox(); tuneBox.setVisibility(View.GONE);
+            content.addView(tuneBox, new LinearLayout.LayoutParams(-1, 0, 1));
             content.addView(text("Same app · both screens · artwork is home · tap a tab to open, tap it again to close", 10));
             setContentView(root); window.setLayout(-1, -1); showArt();
         }
@@ -286,7 +307,7 @@ final class ThorCompanionScreen implements DisplayManager.DisplayListener {
             if (scroll != null) scroll.setVisibility(which == scroll ? View.VISIBLE : View.GONE);
             if (menuBox != null) menuBox.setVisibility(which == menuBox ? View.VISIBLE : View.GONE);
             if (statusBox != null) statusBox.setVisibility(which == statusBox ? View.VISIBLE : View.GONE);
-            if (couchsideBox != null) couchsideBox.setVisibility(which == couchsideBox ? View.VISIBLE : View.GONE);
+            if (tuneBox != null) tuneBox.setVisibility(which == tuneBox ? View.VISIBLE : View.GONE);
         }
         /** Tabs toggle against the art-room home: tap opens the view, tap the same tab again closes to artwork. */
         void toggle(String tab) {
@@ -295,7 +316,7 @@ final class ThorCompanionScreen implements DisplayManager.DisplayListener {
                 case "menu": showMenu(); break;
                 case "controls": showControls(); break;
                 case "status": showStatus(); break;
-                case "couchside": showCouchside(); break;
+                case "tune": showTune(); break;
                 default: showArt();
             }
         }
@@ -357,10 +378,15 @@ final class ThorCompanionScreen implements DisplayManager.DisplayListener {
         }
         View buildStatusBox() {
             LinearLayout col = new LinearLayout(getContext()); col.setOrientation(LinearLayout.VERTICAL); col.setPadding(dp(6), dp(8), dp(6), dp(8));
-            TextView head = text("STATUS", 12); head.setTextColor(0xffc6ad76); head.setTypeface(Typeface.DEFAULT_BOLD); head.setPadding(dp(2), 0, 0, dp(8)); col.addView(head);
+            TextView head = text("STATUS", 12); head.setTextColor(0xffc6ad76); head.setTypeface(Typeface.DEFAULT_BOLD); head.setPadding(dp(2), 0, 0, dp(6)); col.addView(head);
             statusText = text("…", 16); statusText.setLineSpacing(dp(7), 1); statusText.setTypeface(Typeface.MONOSPACE); col.addView(statusText);
+            // Live frame-time graph: a sparkline of recent frame times with 60 and 30 FPS reference lines.
+            TextView gl = text("FRAME TIME  ·  green 60fps  amber 30fps", 10); gl.setTextColor(0xffb59b71);
+            LinearLayout.LayoutParams glp = new LinearLayout.LayoutParams(-2, -2); glp.topMargin = dp(12); gl.setLayoutParams(glp); col.addView(gl);
+            graph = new FrameGraphView(getContext());
+            LinearLayout.LayoutParams grp = new LinearLayout.LayoutParams(-1, dp(72)); grp.topMargin = dp(4); col.addView(graph, grp);
             TextView bl = text("Panel brightness", 12); bl.setTextColor(0xffb59b71);
-            LinearLayout.LayoutParams blp = new LinearLayout.LayoutParams(-2, -2); blp.topMargin = dp(16); bl.setLayoutParams(blp); col.addView(bl);
+            LinearLayout.LayoutParams blp = new LinearLayout.LayoutParams(-2, -2); blp.topMargin = dp(18); bl.setLayoutParams(blp); col.addView(bl);
             SeekBar sb = new SeekBar(getContext()); sb.setMax(100);
             int saved = prefs.getInt("thor_companion_brightness", 80); sb.setProgress(saved); applyBrightness(saved);
             sb.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
@@ -371,6 +397,12 @@ final class ThorCompanionScreen implements DisplayManager.DisplayListener {
             col.addView(sb, new LinearLayout.LayoutParams(-1, -2));
             return col;
         }
+        String hudModeLabel(int mode) { return mode == 1 ? "FPS only" : mode == 2 ? "Full" : "Off"; }
+        void applyPreset(String key) {
+            if (presetApplier == null) return;
+            try { presetApplier.accept(key); } catch (RuntimeException ignored) { }
+            android.widget.Toast.makeText(getContext(), key.substring(0, 1).toUpperCase(Locale.US) + key.substring(1) + " preset — restarting", android.widget.Toast.LENGTH_SHORT).show();
+        }
         void applyBrightness(int pct) {
             Window w = getWindow(); if (w == null) return;
             WindowManager.LayoutParams lp = w.getAttributes();
@@ -380,6 +412,7 @@ final class ThorCompanionScreen implements DisplayManager.DisplayListener {
         void tickStatus() { if (statusVisible) updateStatus(); }
         void updateStatus() {
             if (statusText == null) return;
+            if (graph != null) graph.invalidate();
             StringBuilder sb = new StringBuilder();
             sb.append(new SimpleDateFormat("EEE  h:mm:ss a", Locale.getDefault()).format(new Date())).append('\n');
             float[] p = perfStats();
@@ -387,7 +420,12 @@ final class ThorCompanionScreen implements DisplayManager.DisplayListener {
             else sb.append("FPS   —  (start the game)\n");
             int cpu = readCpuPercent();
             sb.append("CPU   ").append(cpu < 0 ? "—" : cpu + "%");
-            String soc = readSocTemp(); if (soc != null) sb.append("      SOC ").append(soc);
+            float tempC = readSocTempC();
+            if (!Float.isNaN(tempC)) {
+                sb.append(String.format(Locale.US, "      SOC %.0f°C", tempC));
+                if (tempC >= 92) sb.append("  ⚠ THROTTLING");
+                else if (tempC >= 85) sb.append("  ⚠ HOT");
+            }
             sb.append('\n');
             try {
                 ActivityManager am = (ActivityManager) getContext().getSystemService(Context.ACTIVITY_SERVICE);
@@ -407,20 +445,11 @@ final class ThorCompanionScreen implements DisplayManager.DisplayListener {
                 }
             } catch (Exception ignored) { }
             statusText.setText(sb.toString().trim());
+            statusText.setTextColor(!Float.isNaN(tempC) && tempC >= 92 ? 0xffe0534b : !Float.isNaN(tempC) && tempC >= 85 ? 0xffe0a44b : 0xffe5ddcd);
         }
         String readSocTemp() {
-            float max = Float.NaN;
-            try {
-                java.io.File[] zs = new java.io.File("/sys/class/thermal").listFiles();
-                if (zs != null) for (java.io.File z : zs) {
-                    if (!z.getName().startsWith("thermal_zone")) continue;
-                    try (BufferedReader r = new BufferedReader(new FileReader(new java.io.File(z, "temp")))) {
-                        String t = r.readLine();
-                        if (t != null) { float c = Long.parseLong(t.trim()) / 1000f; if (c > 20 && c < 150 && (Float.isNaN(max) || c > max)) max = c; }
-                    } catch (Exception ignored) { }
-                }
-            } catch (Exception ignored) { }
-            return Float.isNaN(max) ? null : String.format(Locale.US, "%.0f°C", max);
+            float c = readSocTempC();
+            return Float.isNaN(c) ? null : String.format(Locale.US, "%.0f°C", c);
         }
         int readCpuPercent() {
             try (BufferedReader r = new BufferedReader(new FileReader("/proc/stat"))) {
@@ -436,28 +465,60 @@ final class ThorCompanionScreen implements DisplayManager.DisplayListener {
                 return pct < 0 ? -1 : Math.min(100, pct);
             } catch (Exception e) { return -1; }
         }
-        /** Couchside tab: the QR shows only while this tab is selected (not persisted), so it is not on screen
-         *  the whole time. The lower screen is a touchscreen, so the card also opens couchside.tv when tapped. */
-        void showCouchside() {
-            showOnly(couchsideBox); activeTab = "couchside"; shade.setBackgroundColor(0xcf080b10);
+        /** Tune tab (in the former Couchside slot): the on-game HUD toggle and the one-tap graphics presets.
+         *  Kept off the Status tab so the live readout there is never pushed off screen. */
+        void showTune() {
+            showOnly(tuneBox); activeTab = "tune"; shade.setBackgroundColor(0xdf080b10);
         }
-        View buildCouchsideBox() {
-            LinearLayout col = new LinearLayout(getContext()); col.setOrientation(LinearLayout.VERTICAL);
-            col.setGravity(Gravity.CENTER); col.setPadding(dp(8), dp(6), dp(8), dp(6));
-            TextView head = text("COUCHSIDE", 18); head.setTextColor(0xffb59b71); head.setTypeface(Typeface.SERIF, Typeface.BOLD);
-            head.setGravity(Gravity.CENTER); col.addView(head);
-            TextView tag = text("The ultimate living-room gaming PC remote", 12); tag.setGravity(Gravity.CENTER);
-            LinearLayout.LayoutParams tp = new LinearLayout.LayoutParams(-2, -2); tp.bottomMargin = dp(10); tag.setLayoutParams(tp);
-            col.addView(tag);
-            ImageView qr = new ImageView(getContext());
-            qr.setImageResource(getContext().getResources().getIdentifier("couchside_qr", "drawable", getContext().getPackageName()));
-            qr.setBackgroundColor(0xffffffff); qr.setPadding(dp(6), dp(6), dp(6), dp(6));
-            col.addView(qr, new LinearLayout.LayoutParams(dp(150), dp(150)));
-            TextView cap = text("Scan to open couchside.tv  ·  or tap here", 11); cap.setGravity(Gravity.CENTER);
-            LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(-2, -2); cp.topMargin = dp(10); cap.setLayoutParams(cp);
-            col.addView(cap);
-            col.setClickable(true); col.setOnClickListener(v -> openSponsor(owner));
-            return col;
+        View buildTuneBox() {
+            LinearLayout col = new LinearLayout(getContext()); col.setOrientation(LinearLayout.VERTICAL); col.setPadding(dp(8), dp(8), dp(8), dp(8));
+            TextView head = text("TUNE", 12); head.setTextColor(0xffc6ad76); head.setTypeface(Typeface.DEFAULT_BOLD); head.setPadding(dp(2), 0, 0, dp(10)); col.addView(head);
+            // On-game HUD: a corner FPS/temp overlay on the upper (game) screen. Cycles Off / FPS only / Full.
+            TextView hl = text("On-game HUD (upper screen)", 12); hl.setTextColor(0xffb59b71); col.addView(hl);
+            hudBtn = new Button(getContext()); hudBtn.setTextSize(13); hudBtn.setAllCaps(false); hudBtn.setTextColor(0xffe5ddcd);
+            hudBtn.setBackgroundTintList(android.content.res.ColorStateList.valueOf(0xc3242930));
+            hudBtn.setText("On-game HUD: " + hudModeLabel(prefs.getInt("thor_hud", 0)));
+            hudBtn.setOnClickListener(v -> {
+                int mode = (prefs.getInt("thor_hud", 0) + 1) % 3;
+                prefs.edit().putInt("thor_hud", mode).apply();
+                hudBtn.setText("On-game HUD: " + hudModeLabel(mode));
+            });
+            LinearLayout.LayoutParams hbp = new LinearLayout.LayoutParams(-1, dp(46)); hbp.topMargin = dp(4); col.addView(hudBtn, hbp);
+            TextView hn = text("Off  ·  FPS only  ·  Full (adds average, 1% low and temperature)", 9); hn.setTextColor(0xff8c93a0); col.addView(hn);
+            // Quick graphics presets: one tap writes bbport.ini and restarts the game on the upper screen.
+            TextView pl = text("Quick graphics  ·  applies and restarts the game", 12); pl.setTextColor(0xffb59b71);
+            LinearLayout.LayoutParams plp = new LinearLayout.LayoutParams(-2, -2); plp.topMargin = dp(18); pl.setLayoutParams(plp); col.addView(pl);
+            LinearLayout presets = new LinearLayout(getContext()); col.addView(presets);
+            button(presets, "Performance", () -> applyPreset("performance"));
+            button(presets, "Balanced", () -> applyPreset("balanced"));
+            button(presets, "Quality", () -> applyPreset("quality"));
+            TextView pn = text("Performance   720p · GSR · 60 fps\nBalanced   1080p · GSR · 45 fps\nQuality   1080p · FSR 3.1 + frame-gen · 30 fps", 10);
+            pn.setTextColor(0xff8c93a0); pn.setLineSpacing(dp(3), 1); LinearLayout.LayoutParams pnp = new LinearLayout.LayoutParams(-2, -2); pnp.topMargin = dp(6); pn.setLayoutParams(pnp); col.addView(pn);
+            ScrollView sv = new ScrollView(getContext()); sv.addView(col); return sv;
+        }
+        /** Draws the recent frame times (ms) as a sparkline, with 60 FPS (16.7 ms) and 30 FPS (33.3 ms) guide lines.
+         *  Reads the outer ring buffer directly; bars are green at/above ~55 FPS, amber above ~28, red below. */
+        final class FrameGraphView extends View {
+            private final android.graphics.Paint fill = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG);
+            private final android.graphics.Paint guide = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG);
+            FrameGraphView(Context c) { super(c); setBackgroundColor(0x33050709); }
+            @Override protected void onDraw(android.graphics.Canvas canvas) {
+                super.onDraw(canvas);
+                float w = getWidth(), h = getHeight(), maxMs = 50f; // y scale: 0..50 ms (>= 20 FPS stays on-chart)
+                guide.setStrokeWidth(Math.max(1f, dp(1) * 0.7f));
+                guide.setColor(0x6657c77a); float y60 = h - (1000f / 60f) / maxMs * h; canvas.drawLine(0, y60, w, y60, guide);
+                guide.setColor(0x66e0a44b); float y30 = h - (1000f / 30f) / maxMs * h; canvas.drawLine(0, y30, w, y30, guide);
+                int n = frameMsCount; if (n < 2) return;
+                int cap = frameMs.length, show = Math.min(n, 150), start = frameMsHead - show;
+                float bw = w / show;
+                for (int i = 0; i < show; i++) {
+                    float ms = frameMs[((start + i) % cap + cap) % cap];
+                    if (ms <= 0) continue;
+                    float bh = Math.min(h, ms / maxMs * h);
+                    fill.setColor(ms <= 1000f / 55f ? 0xff57c77a : ms <= 1000f / 28f ? 0xffe0a44b : 0xffe0534b);
+                    canvas.drawRect(i * bw, h - bh, (i + 1) * bw - (bw > 2 ? 1 : 0), h, fill);
+                }
+            }
         }
     }
 }

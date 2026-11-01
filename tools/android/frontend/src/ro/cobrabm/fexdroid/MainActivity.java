@@ -34,6 +34,8 @@ import java.io.PrintWriter;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.LinkedHashMap;
+import java.util.Locale;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -54,6 +56,7 @@ public final class MainActivity extends Activity {
     private LinearLayout drawer;
     private LinearLayout drawerItems;
     private TextView status;
+    private TextView hud; // on-game performance overlay (upper screen); visibility driven by the "thor_hud" pref
     private View resume;
     private LinearLayout pauseItem;
     private TextView pausedChip;
@@ -294,6 +297,13 @@ public final class MainActivity extends Activity {
         mapChip.setMaxWidth(dp(560)); mapChip.setMaxLines(2); mapChip.setEllipsize(android.text.TextUtils.TruncateAt.END);
         FrameLayout.LayoutParams mapParams=frame(-2,-2,Gravity.TOP|Gravity.CENTER_HORIZONTAL); mapParams.topMargin=dp(56);
         screen.addView(mapChip,mapParams);
+        // On-game performance HUD: a small FPS/temperature overlay in the upper-right of the game screen. Hidden by
+        // default; the lower-screen Status tab cycles it (thor_hud: 0 off, 1 FPS, 2 full). Updated once a second by pollFrames.
+        hud=text("",12,0xffe8dfc9); hud.setTypeface(Typeface.MONOSPACE); hud.setPadding(dp(9),dp(5),dp(9),dp(5));
+        GradientDrawable hudBack=new GradientDrawable(); hudBack.setColor(0xb2101318); hudBack.setCornerRadius(dp(10)); hudBack.setStroke(dp(1),0x66c6ad76);
+        hud.setBackground(hudBack); hud.setVisibility(View.GONE); hud.setClickable(false); hud.setFocusable(false); hud.setLineSpacing(dp(2),1);
+        FrameLayout.LayoutParams hudParams=frame(-2,-2,Gravity.TOP|Gravity.RIGHT); hudParams.topMargin=dp(6); hudParams.rightMargin=dp(10);
+        screen.addView(hud,hudParams);
         atlas.setStatusListener(line -> {
             if (line==null) mapChip.setVisibility(View.GONE); else { mapChip.setText(line); mapChip.setVisibility(View.VISIBLE); }
             positionMapChip();
@@ -424,7 +434,7 @@ public final class MainActivity extends Activity {
         screen.addView(drawer,frame(dp(320),-1,Gravity.LEFT));
         setContentView(screen);
         // Mirror the game menu onto the lower companion screen; the top swipe-drawer keeps its own copy.
-        if (thorCompanion!=null) thorCompanion.setMenu(companionMenu);
+        if (thorCompanion!=null) { thorCompanion.setMenu(companionMenu); thorCompanion.setPresetApplier(this::applyGraphicsPreset); }
     }
 
     private void restartGame() {
@@ -1605,7 +1615,33 @@ public final class MainActivity extends Activity {
             status.setVisibility(View.GONE);
             if (game!=null && !playing) { playing=true; gameState(false); }
         }
+        updateHud();
         main.postDelayed(this::pollFrames,1000);
+    }
+    /** Upper-screen performance HUD, refreshed each second from the companion's frame-time window. */
+    private void updateHud() {
+        if (hud==null) return;
+        int mode=getSharedPreferences("bloodborne",MODE_PRIVATE).getInt("thor_hud",0);
+        if (mode==0 || thorCompanion==null) { hud.setVisibility(View.GONE); return; }
+        float[] p=thorCompanion.fpsForHud();
+        float tempC=ThorCompanionScreen.readSocTempC();
+        StringBuilder sb=new StringBuilder();
+        if (p==null) sb.append("fps  —");
+        else if (mode==1) sb.append(String.format(Locale.US,"%.0f fps",p[0]));
+        else sb.append(String.format(Locale.US,"%.0f fps   avg %.0f\n1%% low %.0f",p[0],p[1],p[2]));
+        if (!Float.isNaN(tempC)) { if (mode==2) sb.append(String.format(Locale.US,"   %.0f°C",tempC)); else sb.append(String.format(Locale.US,"  %.0f°C",tempC)); }
+        hud.setText(sb.toString());
+        hud.setTextColor(!Float.isNaN(tempC)&&tempC>=92 ? 0xffe0534b : !Float.isNaN(tempC)&&tempC>=85 ? 0xffe0a44b : 0xffe8dfc9);
+        hud.setVisibility(View.VISIBLE);
+    }
+    /** One-tap graphics preset from the lower-screen Status tab: writes the perf-relevant bbport.ini keys and restarts. */
+    private void applyGraphicsPreset(String key) {
+        Map<String,String> m=new LinkedHashMap<>();
+        if ("performance".equals(key)) { m.put("output_res","1280x720"); m.put("upscaler","gsr2"); m.put("fps_limit","60"); m.put("frame_generation","0"); m.put("speed_floor","20"); }
+        else if ("quality".equals(key)) { m.put("output_res","1920x1080"); m.put("upscaler","fsr3"); m.put("fps_limit","30"); m.put("frame_generation","1"); m.put("speed_floor","30"); }
+        else { m.put("output_res","1920x1080"); m.put("upscaler","gsr2"); m.put("fps_limit","45"); m.put("frame_generation","0"); m.put("speed_floor","20"); }
+        new SettingsDialog(this,new File(BASE,"bbport.ini"),this::restartGame).setAll(m);
+        if (displayReady) restartGame();
     }
     /** Tells the OS (GameManager, Android 13+) whether the game is loading or being played: game boosters and
      *  the scheduler treat uninterruptible gameplay as such. The game counts as loading from its start until its
