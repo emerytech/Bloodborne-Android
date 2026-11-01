@@ -63,7 +63,8 @@ public final class MainActivity extends Activity {
     private LinearLayout pauseItem, tapPauseItem, updateAutoItem, lidPauseItem;
     private android.content.BroadcastReceiver screenOff; // lid close / screen off -> pause (setting thor_lid_pause)
     private TextView pausedChip;
-    private LinearLayout vibrationItem, gameSettingsItem, cheatsItem, modsItem, graphicsItem, frameGenItem, driverItem, controllerItem, remapItem, folderItem;
+    private LinearLayout vibrationItem, gameSettingsItem, cheatsItem, modsItem, graphicsItem, frameGenItem, driverItem, controllerItem, remapItem, folderItem, autoBackupItem;
+    private volatile boolean autoBackupDone;
     private TouchControllerOverlay controllerOverlay;
     private PadBridge pad;
     private AudioBridge audio;
@@ -426,6 +427,11 @@ public final class MainActivity extends Activity {
         section("Storage");
         folderItem=menuItem("ic_folder","Game folder","",() -> { closeDrawer(); askGameFolder(true); });
         menuItem("ic_download","Back up saves","Copy them to the Download folder",() -> { closeDrawer(); backupSaves(); });
+        autoBackupItem=menuItem("ic_download","Auto-backup saves",autoBackupLabel(),() -> {
+            boolean on=!getSharedPreferences("bloodborne",MODE_PRIVATE).getBoolean("thor_auto_backup",true);
+            getSharedPreferences("bloodborne",MODE_PRIVATE).edit().putBoolean("thor_auto_backup",on).apply();
+            setDetail(autoBackupItem,autoBackupLabel());
+        });
         menuItem("ic_restore","Restore saves","From a backup folder",() -> { closeDrawer(); askRestoreSaves(); });
         menuItem("ic_exit","Quit game",null,() -> new AlertDialog.Builder(this)
             .setTitle("Quit Bloodborne?").setMessage("Any unsaved progress will be lost.")
@@ -1055,6 +1061,10 @@ public final class MainActivity extends Activity {
         return getSharedPreferences("bloodborne",MODE_PRIVATE).getBoolean("thor_lid_pause",true)
             ? "On · pauses when the screen turns off" : "Off";
     }
+    private String autoBackupLabel() {
+        return getSharedPreferences("bloodborne",MODE_PRIVATE).getBoolean("thor_auto_backup",true)
+            ? "On · snapshots saves to Downloads each launch, keeps the last "+AUTO_BACKUP_KEEP : "Off";
+    }
     /** Pauses or resumes to a wanted state (not a toggle), for the companion's Help tab and map-peek gestures. */
     private void setPaused(boolean want) {
         boolean change=false;
@@ -1427,6 +1437,20 @@ public final class MainActivity extends Activity {
             })).setOnDismissListener(d -> immersive()).show();
     }
     private File downloads() { return android.os.Environment.getExternalStoragePublicDirectory(android.os.Environment.DIRECTORY_DOWNLOADS); }
+    private static final int AUTO_BACKUP_KEEP=12;
+    /** Once per launch, on the worker thread, before the game loads: snapshot the saves to Downloads (rotation keeps
+     *  the last {@link #AUTO_BACKUP_KEEP}) so a bad session or a corrupt write can be rolled back from Restore saves.
+     *  Skips when the setting is off, Downloads is not writable, or the saves are unchanged since the last snapshot. */
+    private void autoBackupIfDue() {
+        if (autoBackupDone) return;
+        autoBackupDone=true;
+        if (!getSharedPreferences("bloodborne",MODE_PRIVATE).getBoolean("thor_auto_backup",true)) return;
+        if (!saveStorage(false)) return;
+        try {
+            File made=SaveBackup.autoBackup(savesDir(),downloads(),new java.util.Date(),AUTO_BACKUP_KEEP);
+            if (made!=null) { android.util.Log.i("Bloodborne","auto-backup "+made.getName()); main.post(() -> { if (!destroyed) toast("Saves backed up"); }); }
+        } catch (Exception e) { android.util.Log.w("Bloodborne","auto-backup failed: "+e); }
+    }
     private void askRestoreSaves() {
         if (!saveStorage()) return;
         new AlertDialog.Builder(this).setTitle("Restore saves")
@@ -2017,6 +2041,7 @@ public final class MainActivity extends Activity {
     }
     private void startGame() {
         if (destroyed) return;
+        autoBackupIfDue();
         hadError=false;
         // A native code build is running (the app was opened again, or the display came up): the game cannot start meanwhile; its progress shows.
         if (AotBuildService.active()) {
