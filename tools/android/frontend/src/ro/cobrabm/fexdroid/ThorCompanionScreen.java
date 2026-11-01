@@ -188,6 +188,7 @@ final class ThorCompanionScreen implements DisplayManager.DisplayListener {
         ImageView background; View shade; TextView body; ScrollView scroll; View couchsideBox;
         ScrollView menuBox; LinearLayout menuList; View statusBox; TextView statusText;
         boolean statusVisible; long lastCpuBusy = -1, lastCpuTotal = -1;
+        String activeTab = "art";
         CompanionPresentation(Context context, Display display) { super(context, display); }
         int dp(int value) { return Math.round(value * getContext().getResources().getDisplayMetrics().density); }
         TextView text(String value, int size) {
@@ -216,12 +217,12 @@ final class ThorCompanionScreen implements DisplayManager.DisplayListener {
             TextView title = text("HUNTER’S COMPANION", 21); title.setTextColor(0xffb59b71); title.setTypeface(Typeface.SERIF, Typeface.BOLD); content.addView(title);
             content.addView(text("THOR INTEGRATED PREVIEW · UNOFFICIAL", 10));
             LinearLayout tabs1 = new LinearLayout(getContext()); content.addView(tabs1);
-            button(tabs1, "Menu", () -> showMenu());
-            button(tabs1, "Controls", () -> { prefs.edit().putBoolean("thor_companion_art", false).apply(); showMode(); });
-            button(tabs1, "Artwork", () -> { prefs.edit().putBoolean("thor_companion_art", true).apply(); showMode(); });
+            button(tabs1, "Menu", () -> toggle("menu"));
+            button(tabs1, "Controls", () -> toggle("controls"));
+            button(tabs1, "Artwork", () -> showArt());
             LinearLayout tabs2 = new LinearLayout(getContext()); content.addView(tabs2);
-            button(tabs2, "Status", () -> showStatus());
-            button(tabs2, "Couchside", () -> showCouchside());
+            button(tabs2, "Status", () -> toggle("status"));
+            button(tabs2, "Couchside", () -> toggle("couchside"));
             button(tabs2, "Help", () -> help(owner));
             scroll = new ScrollView(getContext()); body = text("", 16); body.setPadding(0, dp(6), 0, dp(6)); scroll.addView(body);
             content.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1));
@@ -232,8 +233,8 @@ final class ThorCompanionScreen implements DisplayManager.DisplayListener {
             content.addView(statusBox, new LinearLayout.LayoutParams(-1, 0, 1));
             couchsideBox = buildCouchsideBox(); couchsideBox.setVisibility(View.GONE);
             content.addView(couchsideBox, new LinearLayout.LayoutParams(-1, 0, 1));
-            content.addView(text("Same app · both screens · tap a tab above", 10));
-            setContentView(root); window.setLayout(-1, -1); showMode();
+            content.addView(text("Same app · both screens · artwork is home · tap a tab to open, tap it again to close", 10));
+            setContentView(root); window.setLayout(-1, -1); showArt();
         }
         void showOnly(View which) {
             statusVisible = false;
@@ -242,12 +243,33 @@ final class ThorCompanionScreen implements DisplayManager.DisplayListener {
             if (statusBox != null) statusBox.setVisibility(which == statusBox ? View.VISIBLE : View.GONE);
             if (couchsideBox != null) couchsideBox.setVisibility(which == couchsideBox ? View.VISIBLE : View.GONE);
         }
+        /** Tabs toggle against the art-room home: tap opens the view, tap the same tab again closes to artwork. */
+        void toggle(String tab) {
+            if (tab.equals(activeTab)) { showArt(); return; }
+            switch (tab) {
+                case "menu": showMenu(); break;
+                case "controls": showControls(); break;
+                case "status": showStatus(); break;
+                case "couchside": showCouchside(); break;
+                default: showArt();
+            }
+        }
+        /** Dispatcher for the game-menu "Thor companion" dialog, which sets the artwork/controls preference. */
         void showMode() {
-            showOnly(scroll);
-            boolean art = prefs.getBoolean("thor_companion_art", false);
-            shade.setBackgroundColor(art ? 0x40080b10 : 0xcf080b10);
-            body.setGravity(art ? Gravity.CENTER : Gravity.START);
-            body.setText(art ? "Your journey awaits.\n\nRest at a lamp. The Dream keeps your echoes." : "COMBAT\nR1 · Attack       R2 · Heavy / hold to charge\nL1 · Transform    L2 · Left-hand (firearm / shield)\nParry · Fire L2 as the enemy strikes, then R1 up close for a visceral attack\nRally · Attack right after taking damage to win health back\n\nFACE BUTTONS — BY POSITION\nTop △ · Blood vial / heal\nRight ○ · Dodge / quickstep / hold to run\nBottom × · Interact / confirm\nLeft □ · Use selected quick item\n\nMOVEMENT & CAMERA\nLeft stick · Move      Right stick · Camera\nR3 · Lock on / center camera\nD-pad up · Cycle hunter tools\nD-pad down · Cycle quick items\nD-pad left / right · Switch left / right weapon\n\nMENUS\nOptions · Pause / inventory      Touchpad · Gestures\nHold Options at a lamp · Return to the Hunter's Dream\n\nQUICK TIPS\nDied? Your Blood Echoes wait where you fell, or on the enemy that took them.\nInsight is spent at the Bath Messengers and quietly reshapes the night.\nLook for shortcuts; most loop back to a lamp you already lit.");
+            if (prefs.getBoolean("thor_companion_art", true)) showArt(); else showControls();
+        }
+        /** Home view: the art room. The panel opens here and every tab closes back to it. */
+        void showArt() {
+            showOnly(scroll); activeTab = "art";
+            shade.setBackgroundColor(0x40080b10);
+            body.setGravity(Gravity.CENTER);
+            body.setText("Your journey awaits.\n\nRest at a lamp. The Dream keeps your echoes.");
+        }
+        void showControls() {
+            showOnly(scroll); activeTab = "controls";
+            shade.setBackgroundColor(0xcf080b10);
+            body.setGravity(Gravity.START);
+            body.setText("COMBAT\nR1 · Attack       R2 · Heavy / hold to charge\nL1 · Transform    L2 · Left-hand (firearm / shield)\nParry · Fire L2 as the enemy strikes, then R1 up close for a visceral attack\nRally · Attack right after taking damage to win health back\n\nFACE BUTTONS — BY POSITION\nTop △ · Blood vial / heal\nRight ○ · Dodge / quickstep / hold to run\nBottom × · Interact / confirm\nLeft □ · Use selected quick item\n\nMOVEMENT & CAMERA\nLeft stick · Move      Right stick · Camera\nR3 · Lock on / center camera\nD-pad up · Cycle hunter tools\nD-pad down · Cycle quick items\nD-pad left / right · Switch left / right weapon\n\nMENUS\nOptions · Pause / inventory      Touchpad · Gestures\nHold Options at a lamp · Return to the Hunter's Dream\n\nQUICK TIPS\nDied? Your Blood Echoes wait where you fell, or on the enemy that took them.\nInsight is spent at the Bath Messengers and quietly reshapes the night.\nLook for shortcuts; most loop back to a lamp you already lit.");
         }
         /** Menu tab: the game drawer mirrored onto the lower screen. Rebuilt on open so titles reflect current
          *  state. Actions share the top drawer's Runnables; any dialog they open appears on the upper screen. */
@@ -262,7 +284,7 @@ final class ThorCompanionScreen implements DisplayManager.DisplayListener {
                     for (MenuAction a : menu) menuList.addView(menuRow(a));
                 }
             }
-            showOnly(menuBox); shade.setBackgroundColor(0xdf080b10);
+            showOnly(menuBox); activeTab = "menu"; shade.setBackgroundColor(0xdf080b10);
         }
         View menuRow(MenuAction a) {
             LinearLayout row = new LinearLayout(getContext()); row.setOrientation(LinearLayout.HORIZONTAL);
@@ -286,7 +308,7 @@ final class ThorCompanionScreen implements DisplayManager.DisplayListener {
         /** Status tab: live CPU, RAM, battery/temperature and clock (updated each second), plus a brightness
          *  slider for this lower screen. CPU and some readings are best-effort and show — when unavailable. */
         void showStatus() {
-            showOnly(statusBox); statusVisible = true; shade.setBackgroundColor(0xdf080b10); updateStatus();
+            showOnly(statusBox); activeTab = "status"; statusVisible = true; shade.setBackgroundColor(0xdf080b10); updateStatus();
         }
         View buildStatusBox() {
             LinearLayout col = new LinearLayout(getContext()); col.setOrientation(LinearLayout.VERTICAL); col.setPadding(dp(6), dp(8), dp(6), dp(8));
@@ -353,7 +375,7 @@ final class ThorCompanionScreen implements DisplayManager.DisplayListener {
         /** Couchside tab: the QR shows only while this tab is selected (not persisted), so it is not on screen
          *  the whole time. The lower screen is a touchscreen, so the card also opens couchside.tv when tapped. */
         void showCouchside() {
-            showOnly(couchsideBox); shade.setBackgroundColor(0xcf080b10);
+            showOnly(couchsideBox); activeTab = "couchside"; shade.setBackgroundColor(0xcf080b10);
         }
         View buildCouchsideBox() {
             LinearLayout col = new LinearLayout(getContext()); col.setOrientation(LinearLayout.VERTICAL);

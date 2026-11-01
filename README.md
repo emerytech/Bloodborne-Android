@@ -2,7 +2,7 @@
 
 A personal, unofficial fork of [ducvd89/Bloodborne-Android](https://github.com/ducvd89/Bloodborne-Android), based on **android-2.2.0**, with Hunter’s Companion built into the game app for the AYN Thor.
 
-**One installed app, one launch icon, one game-folder selection.** The game runs above; controls or artwork appear below. Upstream already supports Hunter’s Atlas on the second screen: that feature is preserved, and the companion panel yields to it when enabled. Controls here are a reference, not touch buttons.
+**One installed app, one launch icon, one game-folder selection.** The game runs on the upper screen. The lower screen is a touchscreen companion with tabs: the full game **Menu**, a **Controls** reference, **Artwork**, live **Status** (CPU, RAM, battery, temperature and a brightness slider) and **Couchside**. The top swipe-in drawer stays available too, so the game menu is reachable from either screen. Upstream Hunter’s Atlas on the second screen is preserved, and the companion panel yields to it when enabled. The listed control glyphs are a reference, not touch buttons.
 
 ## Full disclosure
 
@@ -15,7 +15,7 @@ The Bloodborne Android port, compiler, runtime and Hunter’s Atlas are the work
 1. Install **[Bloodborne-Thor-Companion-0.8.0-preview.apk](https://github.com/emerytech/Bloodborne-Android/releases/download/thor-v0.8.0-preview.1/Bloodborne-Thor-Companion-0.8.0-preview.apk)** from the [integrated preview release](https://github.com/emerytech/Bloodborne-Android/releases/tag/thor-v0.8.0-preview.1). Do not install an upstream APK over this fork.
 2. Open **Bloodborne · Thor Companion**. Grant storage access and choose your own extracted **Bloodborne 1.09** folder containing `eboot.bin`, `sce_module`, and `sce_sys`.
 3. Existing compatible `aot/` code is imported automatically. Otherwise follow upstream’s on-device or PC rebuild instructions using your own game files.
-4. Use the lower screen’s **Controls**, **Artwork**, and **Help** buttons. The game menu’s **Thor companion** entry also offers hide/show and **Hunter’s Atlas map**. Choose controls/artwork in that menu to switch Atlas off; re-enable the map through Hunter’s Atlas whenever you want it.
+4. The lower screen is a touchscreen. **Artwork is the home view**; tap a tab (**Menu**, **Controls**, **Status** or **Couchside**) to open it and tap the same tab again to close back to the artwork. **Help** opens a dialog. The game menu’s **Thor companion** entry still offers hide/show and the **Hunter’s Atlas map**; enabling the map switches the panel off until you turn the map off again.
 
 No game, saves, game artwork, generated game code, or Lossless Scaling DLL is included. Artwork comes directly from your selected game folder. This is not an official Sony or FromSoftware product.
 
