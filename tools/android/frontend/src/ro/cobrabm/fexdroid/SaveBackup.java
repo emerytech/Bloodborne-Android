@@ -85,4 +85,59 @@ final class SaveBackup {
         if (children!=null) for (File c : children) deleteTree(c);
         f.delete();
     }
+
+    // ---- Auto-backup with rotation (separate from the manual "Bloodborne-saves-*" backups) ----
+    private static final String AUTO_PREFIX="Bloodborne-autosave-";
+    private static final Pattern AUTO=Pattern.compile(Pattern.quote(AUTO_PREFIX)+"[0-9]{8}-[0-9]{6}(-[0-9]+)?");
+
+    /** Auto-backup with rotation. When the live saves differ from the newest auto-backup, copies them to a new
+     *  Bloodborne-autosave-STAMP/savedata, then keeps only the newest {@code keep} auto-backups — the manual
+     *  "Bloodborne-saves-*" backups are never touched. Returns the new backup folder, or null when nothing was
+     *  written: no saves, or unchanged since the last auto-backup. keep &lt; 1 keeps them all. */
+    static File autoBackup(File savedata,File downloads,Date when,int keep) throws IOException {
+        if (!hasSaves(savedata)) return null;
+        File[] existing=listAutoBackups(downloads);
+        if (existing.length>0 && signature(savedata).equals(signature(new File(existing[existing.length-1],"savedata")))) return null;
+        String stamp=new SimpleDateFormat("yyyyMMdd-HHmmss",Locale.ROOT).format(when);
+        File dest=new File(downloads,AUTO_PREFIX+stamp);
+        for (int n=2; dest.exists(); n++) dest=new File(downloads,AUTO_PREFIX+stamp+"-"+n);
+        try { copyTree(savedata,new File(dest,"savedata")); }
+        catch (IOException | RuntimeException e) { deleteTree(dest); throw e; }
+        prune(downloads,keep);
+        return dest;
+    }
+
+    /** Existing auto-backup folders, oldest first (the timestamp name sorts chronologically). */
+    static File[] listAutoBackups(File downloads) {
+        File[] all=downloads==null ? null : downloads.listFiles();
+        if (all==null) return new File[0];
+        java.util.List<File> out=new java.util.ArrayList<>();
+        for (File f : all) if (f.isDirectory() && AUTO.matcher(f.getName()).matches()) out.add(f);
+        java.util.Collections.sort(out,(a,b) -> a.getName().compareTo(b.getName()));
+        return out.toArray(new File[0]);
+    }
+
+    /** Deletes the oldest auto-backups until at most {@code keep} remain. keep &lt; 1 keeps them all. */
+    static void prune(File downloads,int keep) {
+        if (keep<1) return;
+        File[] list=listAutoBackups(downloads);
+        for (int i=0; i<list.length-keep; i++) deleteTree(list[i]);
+    }
+
+    /** A content signature of a save tree — file count, total size and newest mtime. Equal signatures mean the
+     *  saves have not changed since a backup (copyTree preserves mtimes, so a fresh backup matches its source). */
+    static String signature(File dir) {
+        long[] acc={0,0,0}; // count, total size, newest mtime
+        sign(dir,acc);
+        return acc[0]+":"+acc[1]+":"+acc[2];
+    }
+    private static void sign(File f,long[] acc) {
+        if (f==null) return;
+        if (f.isDirectory() && !Files.isSymbolicLink(f.toPath())) {
+            File[] kids=f.listFiles();
+            if (kids!=null) for (File k : kids) sign(k,acc);
+        } else if (f.isFile()) {
+            acc[0]++; acc[1]+=f.length(); long m=f.lastModified(); if (m>acc[2]) acc[2]=m;
+        }
+    }
 }
