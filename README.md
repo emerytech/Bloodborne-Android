@@ -67,7 +67,7 @@ The game runs on the **upper** screen with your physical controls. The **lower**
 
 ## Using the two screens
 
-The lower screen is a touchscreen. **Artwork is the home view** — tap a tab to open it, tap the same tab again to close back to the artwork. The top swipe-in drawer on the upper screen stays available too, so the game menu is reachable from either screen.
+The lower screen is a touchscreen. **Artwork is the home view** — tap a tab to open it, tap the same tab again to close back to the artwork. A **⏸ Pause** button sits in the panel header, reachable from any tab. The top swipe-in drawer on the upper screen stays available too, so the game menu is reachable from either screen (opening it also shows the menu here).
 
 | Tab | What it does |
 |---|---|
@@ -76,7 +76,7 @@ The lower screen is a touchscreen. **Artwork is the home view** — tap a tab to
 | **Artwork** | The home view: the game's own key art, read from your `sce_sys` folder. |
 | **Status** | A live readout, refreshed every second: FPS with a rolling average and 1% low, a frame-time graph (with 60 and 30 FPS guide lines), CPU, RAM, battery, and SoC temperature — which turns amber, then red, and warns when the chip runs hot — plus a clock and a brightness slider for the lower screen. |
 | **Tune** | The on-game HUD toggle and one-tap graphics presets. The HUD is a small FPS/temperature overlay on the **upper** (game) screen — off, FPS only, or full (adds average, 1% low and temperature). The presets — **Performance**, **Balanced**, **Quality** — apply resolution, upscaler, FPS cap and frame-generation in one tap and restart the game. |
-| **Help** | Full disclosure, a short how-it-works note, and a one-tap link to Couchside. |
+| **Help** | Pauses the game and shows the full how-it-works note, the gesture list and the disclosure on the lower screen; tap Help again (or any tab) to resume. |
 
 | Live status readout + frame-time graph | Tune tab: on-game HUD + graphics presets |
 |---|---|
@@ -87,6 +87,14 @@ The lower screen is a touchscreen. **Artwork is the home view** — tap a tab to
 | ![Game menu mirrored to the bottom touchscreen](https://github.com/emerytech/Bloodborne-Android/releases/download/thor-v0.10.0-preview.1/thor-0.10-menu.png) | ![A small FPS, average, 1% low and temperature overlay in the upper-right of the game screen](https://github.com/emerytech/Bloodborne-Android/releases/download/thor-v0.10.0-preview.1/thor-0.10-game-hud.png) |
 
 Upstream's **Hunter's Atlas** second-screen map is preserved. The game menu's **Thor companion** entry offers hide/show and the Atlas map; turning the map on hands the lower screen to Atlas until you turn it off again.
+
+### Gestures
+
+Thumb-friendly swipes on the lower screen (also listed in the Help tab):
+
+- **Double-tap** the upper screen, or the Status tab, to **pause / resume** — a setting in the game menu, on by default.
+- **Swipe left** to put the **Hunter's Atlas** map on the lower screen while you keep playing up top (close it with the map's **Companion** button).
+- **Swipe up** to **pause and open the full map on the upper screen** for a close look; **swipe up again** to close it and resume.
 
 ---
 
