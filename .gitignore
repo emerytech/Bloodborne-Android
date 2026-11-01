@@ -42,3 +42,12 @@ patches.json
 *.wcp
 *.keystore
 *.jks
+.gradle/
+local.properties
+/build/
+
+__pycache__/
+*.pyc
+
+# Committed raster asset: Couchside promo QR for the second-screen companion panel
+!tools/android/frontend/res/drawable-nodpi/couchside_qr.png

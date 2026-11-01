@@ -1,0 +1,49 @@
+{
+  "schema": 1,
+  "entries": [
+    {
+      "id": "xbox-prompts-elden-ring",
+      "title": "Xbox 360 prompts \u00b7 Elden Ring style",
+      "author": "Dommo (goomab); download published by Jgamrot",
+      "category": "Interface",
+      "summary": "Changes the in-game button artwork to Xbox prompts. Data-only archive inspected; gameplay on Thor has not been tested. Source: Dommo\u2019s Xbox (and switch) UI mod, version 0.3.2. Button artwork does not remap physical controls.",
+      "page": "https://www.nexusmods.com/bloodborne/mods/30",
+      "url": "https://github.com/Jgamrot/yharnam-pc/releases/download/windows-v1.6.4/Xbox-360-Prompts-Elden-Ring.zip",
+      "filename": "Xbox-360-Prompts-Elden-Ring.zip",
+      "bytes": 9701069,
+      "sha256": "f0448791e5201d7523ce309adc8c57bf7200218fb776b82fca179ec178ef54a0"
+    },
+    {
+      "id": "xbox-switch-ui",
+      "title": "Xbox and Switch UI \u00b7 other variants",
+      "author": "Dommo (goomab)",
+      "category": "Interface",
+      "summary": "Choose other controller artwork variants on the author\u2019s page. Website login/download may be required. Import the downloaded archive here. Thor gameplay compatibility is unverified.",
+      "page": "https://www.nexusmods.com/bloodborne/mods/30"
+    },
+    {
+      "id": "more-options-at-lamps",
+      "title": "More Options At Lamps (MOAL)",
+      "author": "CocaGeladinhaHmm",
+      "category": "Gameplay",
+      "summary": "Adds extra lamp menu actions. Current 2.x targets a PC port and some features need another mod/patch; Android compatibility is unverified. Read the author\u2019s requirements before downloading. APK/executable or eboot replacements cannot be imported here.",
+      "page": "https://www.nexusmods.com/bloodborne/mods/107"
+    },
+    {
+      "id": "reduced-physics",
+      "title": "Reduced Physics",
+      "author": "Kyoski",
+      "category": "Performance",
+      "summary": "Offers cloth-physics variants. Made as an emulator workaround; improvement on the native Android port is unverified. Check the author\u2019s warnings and choose a variant deliberately.",
+      "page": "https://www.nexusmods.com/bloodborne/mods/114"
+    },
+    {
+      "id": "bbreborne-visual-overhaul",
+      "title": "BBReborne \u00b7 visual overhaul",
+      "author": "See Nexus page",
+      "category": "Graphics",
+      "summary": "Large texture, lighting and material overhaul built for the shadPS4 PC build of Bloodborne. It targets that desktop pipeline and ships multi-gigabyte packs, so it is not made for the native Android port and compatibility on Thor is unverified and likely limited \u2014 listed for awareness. Whole-build or executable downloads cannot be imported here.",
+      "page": "https://www.nexusmods.com/bloodborne/mods/503"
+    }
+  ]
+}

@@ -31,6 +31,8 @@ import java.io.BufferedReader;
 import java.io.File;
 import java.io.InputStreamReader;
 import java.io.PrintWriter;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -42,7 +44,7 @@ public final class MainActivity extends Activity {
     private String FILES, BASE;
     /** The game (e.g. CUSA03173, with eboot.bin) in shared storage, chosen by the player. */
     private String gameDir;
-    private static final int REQUEST_FOLDER=1, REQUEST_STORAGE=2, REQUEST_DRIVER=3, REQUEST_SAVES=9, REQUEST_DLL=10; // 4-6: ModsDialog, 7-8: GameInstaller, 11: NativeCpuDialog
+    private static final int REQUEST_FOLDER=1, REQUEST_STORAGE=2, REQUEST_DRIVER=3, REQUEST_SAVES=9, REQUEST_DLL=10; // 4-6: ModsDialog, 7-8: GameInstaller, 11: NativeCpuDialog, 12: mod browser import
     private SurfaceHolder pendingHolder;
     private final Handler main=new Handler(Looper.getMainLooper());
     private final ExecutorService worker=Executors.newSingleThreadExecutor();
@@ -89,6 +91,8 @@ public final class MainActivity extends Activity {
     private ModsDialog mods;
     /** Hunter's Atlas: the live map on the second screen (AtlasScreen), its menu (AtlasDialog) and the drawer row. */
     private AtlasScreen atlas;
+    private ThorCompanionScreen thorCompanion;
+    private final List<ThorCompanionScreen.MenuAction> companionMenu = new ArrayList<>();
     private AtlasDialog atlasDialog;
     private LinearLayout atlasItem;
     /** Native CPU (the recompiled game code, required to play): its status/import page, its drawer row, the rebuild dialog (RebuildDialog:
@@ -142,6 +146,7 @@ public final class MainActivity extends Activity {
         BASE=FILES+"/bbport";
         drivers=new DriverManager(new File(FILES));
         atlas=new AtlasScreen(this,new File(BASE));
+        thorCompanion=new ThorCompanionScreen(this, () -> gameDir, () -> atlas.enabled() && atlas.installed() && !AtlasScreen.MODE_FLOAT.equals(atlas.mode()), () -> askGameFolder(gameDir!=null), () -> atlas.setEnabled(false), this::showAtlas);
         online=new OnlineSettings(this);
         GameInstaller.Host host=modsHost();
         mods=new ModsDialog(this,host); installer=new GameInstaller(this,host);
@@ -326,6 +331,11 @@ public final class MainActivity extends Activity {
         LinearLayout.LayoutParams bp=new LinearLayout.LayoutParams(-2,-2); bp.leftMargin=dp(6);
         titleRow.addView(donateBadge(),bp);
         drawerItems.addView(titleRow,new LinearLayout.LayoutParams(-1,-2));
+        // Secondary, muted tip pill for this Thor integration (Ko-fi), under ducvd89's primary badge.
+        LinearLayout kofiRow=new LinearLayout(this); kofiRow.setGravity(Gravity.CENTER_VERTICAL|Gravity.END);
+        kofiRow.setPadding(0,dp(3),dp(2),0);
+        kofiRow.addView(kofiBadge(),new LinearLayout.LayoutParams(-2,-2));
+        drawerItems.addView(kofiRow,new LinearLayout.LayoutParams(-1,-2));
         TextView hint=text("Swipe left or press ○ to return",12,0xff8e9097);
         hint.setPadding(dp(10),dp(2),0,dp(6));
         drawerItems.addView(hint,new LinearLayout.LayoutParams(-1,-2));
@@ -342,6 +352,7 @@ public final class MainActivity extends Activity {
             new SettingsDialog(this,new File(BASE,"bbport.ini"),this::restartGame).showCheats(online.playingOnline());
         });
         modsItem=menuItem("ic_extension","Mods","",() -> { closeDrawer(); mods.show(); });
+        menuItem("ic_map","Thor companion","Controls, artwork and full disclosure",() -> { closeDrawer(); thorCompanion.settings(); });
         atlasItem=menuItem("ic_map","Hunter's Atlas","",() -> { closeDrawer(); showAtlas(); });
         onlineItem=menuItem("ic_online","Online","",() -> { closeDrawer(); showOnline(); });
         nativeCpuItem=menuItem("ic_cpu","Native CPU (required)","",() -> { closeDrawer(); nativeCpu.show(); });
@@ -391,7 +402,9 @@ public final class MainActivity extends Activity {
             .setNegativeButton("Cancel",null).setPositiveButton("Quit",(dialog,which) -> finish()).show());
 
         section("App");
-        updateItem=menuItem("ic_refresh","Check for updates","Version "+updater.version(),() -> updater.check());
+        menuItem("ic_online","Couchside","Ultimate Living Room Gaming PC Remote · couchside.tv",() -> { closeDrawer(); ThorCompanionScreen.openSponsor(this); });
+        menuItem("ic_claude_token","Support this Thor build","Optional tip · ko-fi.com/ets3d",() -> { closeDrawer(); ThorCompanionScreen.openKofi(this); });
+        updateItem=menuItem("ic_refresh","Fork releases","Version "+updater.version(),() -> startActivity(new Intent(Intent.ACTION_VIEW,android.net.Uri.parse("https://github.com/emerytech/Bloodborne-Android/releases"))));
         menuItem("ic_bug_report","Report a problem","Save logs for a GitHub issue",() -> { closeDrawer(); report.show(); });
         menuItem("ic_tune","Debug options","Performance switches for testing",() -> {
             closeDrawer();
@@ -402,7 +415,7 @@ public final class MainActivity extends Activity {
         String version="";
         try { version=" "+getPackageManager().getPackageInfo(getPackageName(),0).versionName; }
         catch (Exception ignored) {}
-        TextView about=text("Bloodborne for Android"+version,12,0xff8e9097);
+        TextView about=text("Bloodborne · Thor integrated"+version,12,0xff8e9097);
         about.setPadding(dp(24),dp(8),dp(14),0);
         drawer.addView(about,new LinearLayout.LayoutParams(-1,-2));
         TextView credit=text("by ducvd89@gmail.com\ngithub.com/ducvd89/Bloodborne-Android",10,0xff6f7178);
@@ -410,6 +423,8 @@ public final class MainActivity extends Activity {
         drawer.addView(credit,new LinearLayout.LayoutParams(-1,-2));
         screen.addView(drawer,frame(dp(320),-1,Gravity.LEFT));
         setContentView(screen);
+        // Mirror the game menu onto the lower companion screen; the top swipe-drawer keeps its own copy.
+        if (thorCompanion!=null) thorCompanion.setMenu(companionMenu);
     }
 
     private void restartGame() {
@@ -460,6 +475,39 @@ public final class MainActivity extends Activity {
         return pill;
     }
 
+    /** Secondary tip pill for this Thor integration (Ko-fi), beside ducvd89's primary PayPal badge.
+     *  Deliberately smaller and muted so the upstream donation stays dominant. Focusable for the gamepad,
+     *  with a gold edge when focused; opens Ko-fi in the browser. */
+    private View kofiBadge() {
+        LinearLayout pill=new LinearLayout(this); pill.setGravity(Gravity.CENTER_VERTICAL);
+        pill.setPadding(dp(6),dp(2),dp(7),dp(2));
+        pill.setContentDescription("Tip the Thor build on Ko-fi");
+        pill.setFocusable(true); pill.setClickable(true);
+        pill.setOnClickListener(v -> {
+            try { startActivity(new Intent(Intent.ACTION_VIEW,Uri.parse("https://ko-fi.com/ets3d"))); }
+            catch (Exception ex) { android.util.Log.w("Bloodborne","kofi link: "+ex); }
+        });
+        android.graphics.drawable.StateListDrawable states=new android.graphics.drawable.StateListDrawable();
+        GradientDrawable lit=new GradientDrawable(); lit.setColor(0xff2a2d34); lit.setCornerRadius(dp(7));
+        lit.setStroke(dp(1),0xffc6ad76);
+        GradientDrawable pressed=new GradientDrawable(); pressed.setColor(0xff3a3f49); pressed.setCornerRadius(dp(7));
+        GradientDrawable idle=new GradientDrawable(); idle.setColor(0xcc23262d); idle.setCornerRadius(dp(7));
+        idle.setStroke(dp(1),0x66c6ad76);
+        states.addState(new int[]{android.R.attr.state_pressed},pressed);
+        states.addState(new int[]{android.R.attr.state_focused},lit);
+        states.addState(new int[]{},idle);
+        pill.setBackground(states);
+        android.widget.ImageView coin=new android.widget.ImageView(this);
+        coin.setImageResource(getResources().getIdentifier("ic_claude_token","drawable",getPackageName()));
+        coin.setColorFilter(0xffc6ad76); // flatten the coin to gold so it reads on the dark pill
+        LinearLayout.LayoutParams cp=new LinearLayout.LayoutParams(dp(12),dp(12)); cp.rightMargin=dp(4);
+        pill.addView(coin,cp);
+        TextView label=text("Tip this Thor build · Ko-fi",9,0xffcdbb90);
+        label.setIncludeFontPadding(false);
+        pill.addView(label);
+        return pill;
+    }
+
     /** A menu row: icon, title and an optional second line (null: none; "" filled by refreshDrawer).
      *  Focusable for the gamepad, with a gold highlight when focused or pressed. */
     private LinearLayout menuItem(String icon,String title,String detail,Runnable action) {
@@ -491,7 +539,9 @@ public final class MainActivity extends Activity {
         row.addView(texts,new LinearLayout.LayoutParams(0,-2,1));
         LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,-2); lp.bottomMargin=dp(2);
         row.setMinimumHeight(dp(48));
-        drawerItems.addView(row,lp); return row;
+        drawerItems.addView(row,lp);
+        companionMenu.add(new ThorCompanionScreen.MenuAction(icon,title,detail,action));
+        return row;
     }
     private static void setDetail(LinearLayout row,String value) {
         TextView detail=row==null ? null : (TextView)row.findViewWithTag("detail");
@@ -730,6 +780,7 @@ public final class MainActivity extends Activity {
         applyPause();
         if (updater!=null) updater.resumed(); // back from the "install unknown apps" setting
         if (atlas!=null) atlas.resume();
+        if (thorCompanion!=null) thorCompanion.resume();
     }
     /** The game's activity moved to another display or its display changed (also reported by the display listener):
      *  the map's second screen is chosen again (never the display the game is on). */
@@ -738,6 +789,7 @@ public final class MainActivity extends Activity {
         if (atlas!=null) main.post(() -> { if (!destroyed) atlas.displaysChanged(); });
     }
     @Override protected void onStop() {
+        if (thorCompanion!=null) thorCompanion.stop();
         if (atlas!=null) atlas.stop();
         super.onStop();
     }
@@ -1140,7 +1192,7 @@ public final class MainActivity extends Activity {
             if (dll!=null) copyDll(dll,done); else { immersive(); if (done!=null) done.run(); }
             return;
         }
-        if (code==ModsDialog.REQUEST_FOLDER || code==ModsDialog.REQUEST_ARCHIVE) { mods.onResult(code,result,data); return; }
+        if (code==ModsDialog.REQUEST_FOLDER || code==ModsDialog.REQUEST_ARCHIVE || code==ModsDialog.REQUEST_BROWSER_ARCHIVE) { mods.onResult(code,result,data); return; }
         if (code==NativeCpuDialog.REQUEST_FILES) { nativeCpu.onResult(result,data); return; }
         if (code==REQUEST_SAVES) {
             if (result==RESULT_OK && data!=null && data.getData()!=null) restoreSaves(folderOf(data.getData()));
@@ -1940,7 +1992,7 @@ public final class MainActivity extends Activity {
         if (p!=null) { p.destroyForcibly(); try { p.waitFor(); } catch (InterruptedException e) { Thread.currentThread().interrupt(); } }
     }
     @Override protected void onDestroy() {
-        destroyed=true; if (nativeCpu!=null) nativeCpu.close(); if (rebuild!=null) rebuild.close(); AotBuildService.unlisten(buildListener); if (atlasDialog!=null) atlasDialog.close(); if (onlineDialog!=null) onlineDialog.close(); if (atlas!=null) atlas.destroy(); if (driverDownload!=null) driverDownload.close(); if (mods!=null) mods.close(); if (installer!=null) installer.close(); if (updater!=null) updater.close(); pad.reset(); rumble.close(); audio.stop(); main.removeCallbacksAndMessages(null);
+        destroyed=true; if (thorCompanion!=null) thorCompanion.destroy(); if (nativeCpu!=null) nativeCpu.close(); if (rebuild!=null) rebuild.close(); AotBuildService.unlisten(buildListener); if (atlasDialog!=null) atlasDialog.close(); if (onlineDialog!=null) onlineDialog.close(); if (atlas!=null) atlas.destroy(); if (driverDownload!=null) driverDownload.close(); if (mods!=null) mods.close(); if (installer!=null) installer.close(); if (updater!=null) updater.close(); pad.reset(); rumble.close(); audio.stop(); main.removeCallbacksAndMessages(null);
         stopGame();
         worker.shutdownNow(); super.onDestroy();
     }

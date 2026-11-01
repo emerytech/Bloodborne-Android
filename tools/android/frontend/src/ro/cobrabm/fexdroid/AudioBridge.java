@@ -48,7 +48,9 @@ final class AudioBridge {
                  FileInputStream in=new FileInputStream(pipe.getFD())) {
                 FileDescriptor fd=pipe.getFD();
                 // A small pipe keeps the delay short (~40 ms); the default 64 KiB is ~340 ms.
-                try { Os.fcntlInt(fd,F_SETPIPE_SZ,8192); } catch (Exception ignored) {}
+                if (android.os.Build.VERSION.SDK_INT >= 30) {
+                    try { Os.fcntlInt(fd,F_SETPIPE_SZ,8192); } catch (Exception ignored) {}
+                }
                 int min=AudioTrack.getMinBufferSize(RATE,AudioFormat.CHANNEL_OUT_STEREO,AudioFormat.ENCODING_PCM_16BIT);
                 AudioTrack t=new AudioTrack.Builder()
                     .setAudioAttributes(captureAll(new AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_GAME)
