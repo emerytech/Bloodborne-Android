@@ -101,6 +101,35 @@ final class ThorCompanionScreen implements DisplayManager.DisplayListener {
     /** Set by MainActivity: applies a one-tap graphics preset (writes bbport.ini and restarts the game). */
     private java.util.function.Consumer<String> presetApplier;
     void setPresetApplier(java.util.function.Consumer<String> f) { presetApplier = f; }
+    /** Set by MainActivity: the graphics preset active in bbport.ini now ("performance"/"balanced"/"quality") or null. */
+    private Supplier<String> activePreset;
+    void setActivePreset(Supplier<String> f) { activePreset = f; }
+    /** Set by MainActivity: toggle pause, read paused state, read whether a game is running — for the always-visible
+     *  Pause button in the companion header. */
+    private Runnable pauseToggle;
+    private BooleanSupplier pausedState, pauseRunning;
+    void setPauseControl(Runnable toggle, BooleanSupplier paused, BooleanSupplier running) {
+        pauseToggle = toggle; pausedState = paused; pauseRunning = running;
+    }
+    /** MainActivity calls this when pause state changes so the header button relabels at once (it also refreshes each tick). */
+    void onPauseChanged() { main.post(() -> { if (panel != null) panel.updatePauseButton(); }); }
+    /** The edge-swipe that opens the top game drawer also brings the same menu onto the lower screen; closing it
+     *  returns the lower screen to the artwork home. */
+    void showMenuTab() { main.post(() -> { if (panel != null) panel.showMenu(); }); }
+    void showArtHome() { main.post(() -> { if (panel != null) panel.showArt(); }); }
+    /** Rotating discovery tips on the artwork home screen — a fresh one each time you return home. */
+    static final String[] TIPS = {
+        "Swipe in from the left edge of the game screen to open the menu.",
+        "Double-tap the game screen — or this Status area — to pause and resume.",
+        "The ⏸ Pause button up top works from any tab, anytime.",
+        "Tap a tab to open it; tap the same tab again to come back here.",
+        "Tune tab: one-tap Performance, Balanced and Quality graphics presets.",
+        "Status tab: live FPS, 1% low, a frame-time graph and chip temperature.",
+        "Turn on the on-game HUD from the Tune tab for an FPS overlay on the game.",
+        "Check for updates from the game menu — new builds install in place.",
+        "Atlas opens the Hunter’s map right here on the lower screen.",
+    };
+    private int tipIndex;
     /** Highest valid SoC thermal-zone reading in °C, or NaN. Shared by the panel Status tab and the on-game HUD. */
     static float readSocTempC() {
         float max = Float.NaN;
@@ -181,7 +210,7 @@ final class ThorCompanionScreen implements DisplayManager.DisplayListener {
         String directory = gameDirectory.get();
         String path = directory == null ? "" : new File(directory, "sce_sys/pic1.png").getAbsolutePath();
         if (!path.equals(imagePath)) loadArt(path);
-        if (panel != null) panel.tickStatus();
+        if (panel != null) { panel.tickStatus(); panel.updatePauseButton(); }
     }
     private void loadArt(String path) {
         imagePath = path; final int generation = ++imageGeneration;
@@ -221,7 +250,7 @@ final class ThorCompanionScreen implements DisplayManager.DisplayListener {
                 + "The top swipe-in drawer stays available too, so the same game menu is reachable from either screen. "
                 + "The panel closes when you leave the game activity and returns when you resume. Enable Hunter’s Atlas to use its second-screen map instead. Choosing controls or artwork from the Thor companion menu switches the map off; it can be enabled again in Hunter’s Atlas. "
                 + "No game assets, saves or generated native game code are bundled. This preview has its own private save/settings storage; "
-                + "it does not import or replace another installed Bloodborne app.\n\nCouchside: the ultimate living room gaming PC remote at couchside.tv. Please support ducvd89’s Bloodborne port via the link by the title. Optional tip for this Thor integration: ko-fi.com/ets3d.")
+                + "it does not import or replace another installed Bloodborne app.\n\nCouchside: the ultimate living room gaming PC remote at couchside.tv. Like this Thor build? An optional tip goes to the developer via the badge by the title: ko-fi.com/ets3d. The Bloodborne Android port itself is ducvd89’s work (github.com/ducvd89/Bloodborne-Android).")
             .setNeutralButton("Couchside", (dialog, which) -> openSponsor(context))
             .setPositiveButton("Got it", null).show();
     }
@@ -252,7 +281,8 @@ final class ThorCompanionScreen implements DisplayManager.DisplayListener {
     private final class CompanionPresentation extends Presentation {
         ImageView background; View shade; TextView body; ScrollView scroll; View tuneBox;
         ScrollView menuBox; LinearLayout menuList; View statusBox; TextView statusText;
-        FrameGraphView graph; Button hudBtn;
+        FrameGraphView graph; Button hudBtn, pauseBtn;
+        java.util.LinkedHashMap<String,Button> presetButtons; TextView presetActiveLabel;
         boolean statusVisible; long lastCpuBusy = -1, lastCpuTotal = -1;
         String activeTab = "art";
         CompanionPresentation(Context context, Display display) { super(context, display); }
@@ -260,11 +290,35 @@ final class ThorCompanionScreen implements DisplayManager.DisplayListener {
         TextView text(String value, int size) {
             TextView t = new TextView(getContext()); t.setText(value); t.setTextSize(size); t.setTextColor(0xffe5ddcd); t.setLineSpacing(dp(2), 1); return t;
         }
-        void button(LinearLayout row, String label, Runnable action) {
+        Button button(LinearLayout row, String label, Runnable action) {
             Button b = new Button(getContext()); b.setText(label); b.setTextSize(12); b.setAllCaps(false); b.setTextColor(0xffe5ddcd);
             b.setBackgroundTintList(android.content.res.ColorStateList.valueOf(0xc3242930));
             LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(0, dp(44), 1); p.setMargins(dp(2), dp(3), dp(2), dp(3));
             row.addView(b, p); b.setOnClickListener(view -> action.run());
+            return b;
+        }
+        void updatePauseButton() {
+            if (pauseBtn == null) return;
+            boolean running = pauseRunning != null && pauseRunning.getAsBoolean();
+            boolean paused = pausedState != null && pausedState.getAsBoolean();
+            pauseBtn.setEnabled(running); pauseBtn.setAlpha(running ? 1f : 0.4f);
+            pauseBtn.setText(paused ? "▶ Resume" : "⏸ Pause");
+        }
+        /** Tints the preset button matching bbport.ini now (gold) and names the active preset below the row. */
+        void highlightActivePreset() {
+            if (presetButtons == null) return;
+            String active = null;
+            if (activePreset != null) { try { active = activePreset.get(); } catch (RuntimeException ignored) { } }
+            for (java.util.Map.Entry<String,Button> e : presetButtons.entrySet()) {
+                boolean on = e.getKey().equals(active);
+                e.getValue().setBackgroundTintList(android.content.res.ColorStateList.valueOf(on ? 0xffb59b71 : 0xc3242930));
+                e.getValue().setTextColor(on ? 0xff101923 : 0xffe5ddcd);
+            }
+            if (presetActiveLabel != null) {
+                String name = "performance".equals(active) ? "Performance" : "balanced".equals(active) ? "Balanced"
+                    : "quality".equals(active) ? "Quality" : null;
+                presetActiveLabel.setText(name == null ? "Active: custom settings" : "Active: " + name);
+            }
         }
         @Override protected void onCreate(Bundle state) {
             super.onCreate(state);
@@ -280,8 +334,16 @@ final class ThorCompanionScreen implements DisplayManager.DisplayListener {
             shade = new View(getContext()); root.addView(shade, new FrameLayout.LayoutParams(-1, -1));
             LinearLayout content = new LinearLayout(getContext()); content.setOrientation(LinearLayout.VERTICAL); content.setPadding(dp(12), dp(8), dp(12), dp(8));
             root.addView(content, new FrameLayout.LayoutParams(-1, -1));
-            TextView title = text("HUNTER’S COMPANION", 21); title.setTextColor(0xffb59b71); title.setTypeface(Typeface.SERIF, Typeface.BOLD); content.addView(title);
+            LinearLayout titleRow = new LinearLayout(getContext()); titleRow.setOrientation(LinearLayout.HORIZONTAL); titleRow.setGravity(Gravity.CENTER_VERTICAL); content.addView(titleRow);
+            TextView title = text("HUNTER’S COMPANION", 21); title.setTextColor(0xffb59b71); title.setTypeface(Typeface.SERIF, Typeface.BOLD);
+            titleRow.addView(title, new LinearLayout.LayoutParams(0, -2, 1));
+            // Always-visible pause/resume, reachable from any tab (not only the game Menu).
+            pauseBtn = new Button(getContext()); pauseBtn.setAllCaps(false); pauseBtn.setTextSize(13); pauseBtn.setTextColor(0xffe5ddcd);
+            pauseBtn.setBackgroundTintList(android.content.res.ColorStateList.valueOf(0xc3242930)); pauseBtn.setText("⏸ Pause");
+            pauseBtn.setOnClickListener(v -> { if (pauseToggle != null) pauseToggle.run(); updatePauseButton(); });
+            titleRow.addView(pauseBtn, new LinearLayout.LayoutParams(-2, dp(40)));
             content.addView(text("THOR INTEGRATED PREVIEW · UNOFFICIAL", 10));
+            updatePauseButton();
             LinearLayout tabs1 = new LinearLayout(getContext()); content.addView(tabs1);
             button(tabs1, "Menu", () -> toggle("menu"));
             button(tabs1, "Controls", () -> toggle("controls"));
@@ -329,7 +391,8 @@ final class ThorCompanionScreen implements DisplayManager.DisplayListener {
             showOnly(scroll); activeTab = "art";
             shade.setBackgroundColor(0x40080b10);
             body.setGravity(Gravity.CENTER);
-            body.setText("Your journey awaits.\n\nRest at a lamp. The Dream keeps your echoes.");
+            String tip = TIPS[Math.floorMod(tipIndex++, TIPS.length)];
+            body.setText("Your journey awaits.\n\nRest at a lamp. The Dream keeps your echoes.\n\n✦ Did you know?\n" + tip);
         }
         void showControls() {
             showOnly(scroll); activeTab = "controls";
@@ -395,6 +458,16 @@ final class ThorCompanionScreen implements DisplayManager.DisplayListener {
                 @Override public void onStopTrackingTouch(SeekBar s) { prefs.edit().putInt("thor_companion_brightness", Math.max(5, s.getProgress())).apply(); }
             });
             col.addView(sb, new LinearLayout.LayoutParams(-1, -2));
+            // Double-tap anywhere in the readout (not the slider) to pause/resume — pause with a thumb on the bottom
+            // screen. Same thor_tap_pause setting; the slider keeps working (it consumes its touches first).
+            final android.view.GestureDetector statusTap = new android.view.GestureDetector(getContext(),
+                new android.view.GestureDetector.SimpleOnGestureListener() {
+                    @Override public boolean onDoubleTap(android.view.MotionEvent e) {
+                        if (pauseToggle != null && prefs.getBoolean("thor_tap_pause", true)) pauseToggle.run();
+                        return true;
+                    }
+                });
+            col.setOnTouchListener((v, e) -> { statusTap.onTouchEvent(e); return true; });
             return col;
         }
         String hudModeLabel(int mode) { return mode == 1 ? "FPS only" : mode == 2 ? "Full" : "Off"; }
@@ -402,6 +475,7 @@ final class ThorCompanionScreen implements DisplayManager.DisplayListener {
             if (presetApplier == null) return;
             try { presetApplier.accept(key); } catch (RuntimeException ignored) { }
             android.widget.Toast.makeText(getContext(), key.substring(0, 1).toUpperCase(Locale.US) + key.substring(1) + " preset — restarting", android.widget.Toast.LENGTH_SHORT).show();
+            highlightActivePreset();
         }
         void applyBrightness(int pct) {
             Window w = getWindow(); if (w == null) return;
@@ -468,7 +542,7 @@ final class ThorCompanionScreen implements DisplayManager.DisplayListener {
         /** Tune tab (in the former Couchside slot): the on-game HUD toggle and the one-tap graphics presets.
          *  Kept off the Status tab so the live readout there is never pushed off screen. */
         void showTune() {
-            showOnly(tuneBox); activeTab = "tune"; shade.setBackgroundColor(0xdf080b10);
+            showOnly(tuneBox); activeTab = "tune"; shade.setBackgroundColor(0xdf080b10); highlightActivePreset();
         }
         View buildTuneBox() {
             LinearLayout col = new LinearLayout(getContext()); col.setOrientation(LinearLayout.VERTICAL); col.setPadding(dp(8), dp(8), dp(8), dp(8));
@@ -489,11 +563,15 @@ final class ThorCompanionScreen implements DisplayManager.DisplayListener {
             TextView pl = text("Quick graphics  ·  applies and restarts the game", 12); pl.setTextColor(0xffb59b71);
             LinearLayout.LayoutParams plp = new LinearLayout.LayoutParams(-2, -2); plp.topMargin = dp(18); pl.setLayoutParams(plp); col.addView(pl);
             LinearLayout presets = new LinearLayout(getContext()); col.addView(presets);
-            button(presets, "Performance", () -> applyPreset("performance"));
-            button(presets, "Balanced", () -> applyPreset("balanced"));
-            button(presets, "Quality", () -> applyPreset("quality"));
+            presetButtons = new java.util.LinkedHashMap<>();
+            presetButtons.put("performance", button(presets, "Performance", () -> applyPreset("performance")));
+            presetButtons.put("balanced", button(presets, "Balanced", () -> applyPreset("balanced")));
+            presetButtons.put("quality", button(presets, "Quality", () -> applyPreset("quality")));
+            presetActiveLabel = text("", 11); presetActiveLabel.setTextColor(0xffc6ad76);
+            LinearLayout.LayoutParams palp = new LinearLayout.LayoutParams(-2, -2); palp.topMargin = dp(6); presetActiveLabel.setLayoutParams(palp); col.addView(presetActiveLabel);
             TextView pn = text("Performance   720p · GSR · 60 fps\nBalanced   1080p · GSR · 45 fps\nQuality   1080p · FSR 3.1 + frame-gen · 30 fps", 10);
             pn.setTextColor(0xff8c93a0); pn.setLineSpacing(dp(3), 1); LinearLayout.LayoutParams pnp = new LinearLayout.LayoutParams(-2, -2); pnp.topMargin = dp(6); pn.setLayoutParams(pnp); col.addView(pn);
+            highlightActivePreset();
             ScrollView sv = new ScrollView(getContext()); sv.addView(col); return sv;
         }
         /** Draws the recent frame times (ms) as a sparkline, with 60 FPS (16.7 ms) and 30 FPS (33.3 ms) guide lines.

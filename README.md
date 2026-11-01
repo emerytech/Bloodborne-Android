@@ -23,7 +23,7 @@ The Bloodborne Android port, compiler, runtime and Hunter's Atlas are the work o
 | **Device** | An **AYN Thor** (dual-screen Android handheld). The build targets its two screens; it runs on other Android devices but the second-screen companion only appears on a display named `Screen-2`. |
 | **Game files** | Your own **Bloodborne 1.09** files — a folder containing `eboot.bin`, `sce_module/` and `sce_sys/` — extracted from a disc **you own**. None are included here. |
 | **Storage** | Free space for your extracted game files plus the on-device compiled code (several GB). |
-| **The app** | The APK from the [latest preview release](https://github.com/emerytech/Bloodborne-Android/releases/latest). |
+| **The app** | The APK from the [latest preview release](https://github.com/emerytech/Bloodborne-Android/releases). |
 
 ---
 
@@ -31,7 +31,7 @@ The Bloodborne Android port, compiler, runtime and Hunter's Atlas are the work o
 
 ### 1. Install the app
 
-1. Download **[Bloodborne-Thor-Companion-0.10.0-preview.apk](https://github.com/emerytech/Bloodborne-Android/releases/download/thor-v0.10.0-preview.1/Bloodborne-Thor-Companion-0.10.0-preview.apk)** from the [latest release](https://github.com/emerytech/Bloodborne-Android/releases/latest) onto your Thor.
+1. Download **[Bloodborne-Thor-Companion-0.10.0-preview.apk](https://github.com/emerytech/Bloodborne-Android/releases/download/thor-v0.10.0-preview.1/Bloodborne-Thor-Companion-0.10.0-preview.apk)** from the [latest release](https://github.com/emerytech/Bloodborne-Android/releases) onto your Thor.
 2. Open it and install. Android will ask you to allow installing from your browser or file manager the first time — allow it, then install.
 3. **Do not install an upstream APK over this fork.** This build uses its own package (`com.emerytech.bloodbornethor`), so it sits beside any existing Bloodborne app without touching it.
 
@@ -141,7 +141,7 @@ A signed release requires `SIGNING_KEYSTORE`, `SIGNING_STORE_PASSWORD`, `SIGNING
 
 ## Support and Couchside
 
-This fork is free. If the upstream port helps you, support its author **ducvd89** via the primary **Buy me a Claude token** badge by the title (PayPal). A smaller secondary badge offers an optional **[Ko-fi](https://ko-fi.com/ets3d)** tip for this Thor integration. **[Couchside](https://couchside.tv)** — the ultimate living-room gaming PC remote — opens in one tap from the game **Menu** (and from the lower-screen **Help** tab). No purchase is required and nothing is gated. Links open in your browser.
+This fork is free. If this Thor build helps you, the **Buy me a Claude token** badge by the title is an optional tip to the developer and opens **[Ko-fi](https://ko-fi.com/ets3d)**. The underlying Bloodborne Android port is **ducvd89's** work — see the [upstream project](https://github.com/ducvd89/Bloodborne-Android). **[Couchside](https://couchside.tv)** — the ultimate living-room gaming PC remote — opens in one tap from the game **Menu** (and from the lower-screen **Help** tab). No purchase is required and nothing is gated. Links open in your browser.
 
 ---
 
