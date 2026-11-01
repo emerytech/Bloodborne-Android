@@ -468,6 +468,7 @@ public final class MainActivity extends Activity {
                 () -> { synchronized (pauseLock) { return gamePid>0; } });
             thorCompanion.setGestures(this::atlasOnBottom, this::mapPeekToggle, this::mapPeekClose);
             thorCompanion.setPauseSetter(this::setPaused);
+            thorCompanion.setFlagSource(() -> atlas != null ? atlas.pollFlags() : null);
         }
     }
 

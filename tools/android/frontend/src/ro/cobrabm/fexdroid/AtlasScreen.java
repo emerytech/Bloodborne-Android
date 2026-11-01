@@ -255,6 +255,13 @@ final class AtlasScreen implements DisplayManager.DisplayListener {
     }
     /** The game was started with the map's files (so atlas.shm is being written). */
     boolean launchedWithAtlas() { return launchedWithAtlas; }
+    /** For the companion's Trophies tab: refresh the event-flag state from the game's shm and return a read-only
+     *  snapshot, or null when the game was not launched with the Atlas (nothing is being written then). Main thread. */
+    synchronized AtlasFeatures.Flags pollFlags() {
+        if (!launchedWithAtlas) return null;
+        state.poll();
+        return state.snapshot();
+    }
 
     // ---- lifecycle of the activity ----
 
