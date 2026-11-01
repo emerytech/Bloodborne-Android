@@ -2,7 +2,7 @@
 
 A personal, unofficial fork of [ducvd89/Bloodborne-Android](https://github.com/ducvd89/Bloodborne-Android), based on **android-2.2.0**, that builds Hunter's Companion into the game app for the **AYN Thor**. One installed app, one launch icon, one game-folder selection: the game runs on the upper screen and a touchscreen companion runs on the lower screen.
 
-![The lower-screen companion: tabs for the game menu, controls, artwork, live status and Couchside](https://github.com/emerytech/Bloodborne-Android/releases/download/thor-v0.9.0-preview.1/thor-0.8-panel.gif)
+![The lower-screen companion: tabs for the game menu, controls, artwork, a live status readout with a frame-time graph, and a Tune tab for the on-game HUD and graphics presets](https://github.com/emerytech/Bloodborne-Android/releases/download/thor-v0.10.0-preview.1/thor-0.10-panel.gif)
 
 > **This is not a copy of the game.** No game, saves, game artwork, generated game code, or Lossless Scaling DLL is included. You provide your own game files, extracted from your own legally-owned disc. This is not an official Sony or FromSoftware product.
 
@@ -31,7 +31,7 @@ The Bloodborne Android port, compiler, runtime and Hunter's Atlas are the work o
 
 ### 1. Install the app
 
-1. Download **[Bloodborne-Thor-Companion-0.9.0-preview.apk](https://github.com/emerytech/Bloodborne-Android/releases/download/thor-v0.9.0-preview.1/Bloodborne-Thor-Companion-0.9.0-preview.apk)** from the [latest release](https://github.com/emerytech/Bloodborne-Android/releases/latest) onto your Thor.
+1. Download **[Bloodborne-Thor-Companion-0.10.0-preview.apk](https://github.com/emerytech/Bloodborne-Android/releases/download/thor-v0.10.0-preview.1/Bloodborne-Thor-Companion-0.10.0-preview.apk)** from the [latest release](https://github.com/emerytech/Bloodborne-Android/releases/latest) onto your Thor.
 2. Open it and install. Android will ask you to allow installing from your browser or file manager the first time — allow it, then install.
 3. **Do not install an upstream APK over this fork.** This build uses its own package (`com.emerytech.bloodbornethor`), so it sits beside any existing Bloodborne app without touching it.
 
@@ -74,13 +74,17 @@ The lower screen is a touchscreen. **Artwork is the home view** — tap a tab to
 | **Menu** | The full in-game menu — settings, cheats, mods, saves, online, graphics, controls — mirrored onto the bottom touchscreen. Dialogs open on the upper screen. |
 | **Controls** | A quick reference for the Bloodborne button layout (combat, parry/rally, movement, menus, tips). The glyphs are a reference, not touch buttons. |
 | **Artwork** | The home view: the game's own key art, read from your `sce_sys` folder. |
-| **Status** | Live CPU, RAM, battery and temperature, a clock, and a brightness slider for the lower screen, refreshed every second. |
-| **Couchside** | A scannable QR to [couchside.tv](https://couchside.tv), shown only when you open this tab. Tap the card to open it directly. |
-| **Help** | Full disclosure and a short how-it-works note. |
+| **Status** | A live readout, refreshed every second: FPS with a rolling average and 1% low, a frame-time graph (with 60 and 30 FPS guide lines), CPU, RAM, battery, and SoC temperature — which turns amber, then red, and warns when the chip runs hot — plus a clock and a brightness slider for the lower screen. |
+| **Tune** | The on-game HUD toggle and one-tap graphics presets. The HUD is a small FPS/temperature overlay on the **upper** (game) screen — off, FPS only, or full (adds average, 1% low and temperature). The presets — **Performance**, **Balanced**, **Quality** — apply resolution, upscaler, FPS cap and frame-generation in one tap and restart the game. |
+| **Help** | Full disclosure, a short how-it-works note, and a one-tap link to Couchside. |
 
-| Game menu on the lower screen | Live status |
+| Live status readout + frame-time graph | Tune tab: on-game HUD + graphics presets |
 |---|---|
-| ![Game menu mirrored to the bottom touchscreen](https://github.com/emerytech/Bloodborne-Android/releases/download/thor-v0.9.0-preview.1/thor-0.8-menu.png) | ![Live CPU, RAM, battery and temperature](https://github.com/emerytech/Bloodborne-Android/releases/download/thor-v0.9.0-preview.1/thor-0.8-status.png) |
+| ![FPS with average and 1% low, CPU, RAM, battery, SoC temperature and a live frame-time graph](https://github.com/emerytech/Bloodborne-Android/releases/download/thor-v0.10.0-preview.1/thor-0.10-status.png) | ![The Tune tab: on-game HUD toggle and Performance / Balanced / Quality graphics presets](https://github.com/emerytech/Bloodborne-Android/releases/download/thor-v0.10.0-preview.1/thor-0.10-tune.png) |
+
+| Game menu on the lower screen | On-game HUD on the upper screen |
+|---|---|
+| ![Game menu mirrored to the bottom touchscreen](https://github.com/emerytech/Bloodborne-Android/releases/download/thor-v0.10.0-preview.1/thor-0.10-menu.png) | ![A small FPS, average, 1% low and temperature overlay in the upper-right of the game screen](https://github.com/emerytech/Bloodborne-Android/releases/download/thor-v0.10.0-preview.1/thor-0.10-game-hud.png) |
 
 Upstream's **Hunter's Atlas** second-screen map is preserved. The game menu's **Thor companion** entry offers hide/show and the Atlas map; turning the map on hands the lower screen to Atlas until you turn it off again.
 
@@ -129,7 +133,7 @@ A signed release requires `SIGNING_KEYSTORE`, `SIGNING_STORE_PASSWORD`, `SIGNING
 
 ## Support and Couchside
 
-This fork is free. If the upstream port helps you, support its author **ducvd89** via the primary **Buy me a Claude token** badge by the title (PayPal). A smaller secondary badge offers an optional **[Ko-fi](https://ko-fi.com/ets3d)** tip for this Thor integration. The lower screen's **Couchside** tab shows a scannable QR to **[Couchside](https://couchside.tv)** — the ultimate living-room gaming PC remote — and, because that screen is a touchscreen, the card also opens it on tap. No purchase is required and nothing is gated. Links open in your browser.
+This fork is free. If the upstream port helps you, support its author **ducvd89** via the primary **Buy me a Claude token** badge by the title (PayPal). A smaller secondary badge offers an optional **[Ko-fi](https://ko-fi.com/ets3d)** tip for this Thor integration. **[Couchside](https://couchside.tv)** — the ultimate living-room gaming PC remote — opens in one tap from the game **Menu** (and from the lower-screen **Help** tab). No purchase is required and nothing is gated. Links open in your browser.
 
 ---
 
