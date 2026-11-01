@@ -60,7 +60,8 @@ public final class MainActivity extends Activity {
     private TextView status;
     private TextView hud; // on-game performance overlay (upper screen); visibility driven by the "thor_hud" pref
     private View resume;
-    private LinearLayout pauseItem, tapPauseItem;
+    private LinearLayout pauseItem, tapPauseItem, updateAutoItem, lidPauseItem;
+    private android.content.BroadcastReceiver screenOff; // lid close / screen off -> pause (setting thor_lid_pause)
     private TextView pausedChip;
     private LinearLayout vibrationItem, gameSettingsItem, cheatsItem, modsItem, graphicsItem, frameGenItem, driverItem, controllerItem, remapItem, folderItem;
     private TouchControllerOverlay controllerOverlay;
@@ -168,6 +169,13 @@ public final class MainActivity extends Activity {
         });
         report=new ReportDialog(this,reportHost());
         worker.execute(updater::cleanup); // downloads an earlier run left
+        // Closing the Thor's lid turns the screens off; pause the game then (setting thor_lid_pause, on by default).
+        screenOff=new android.content.BroadcastReceiver() {
+            @Override public void onReceive(android.content.Context context, Intent intent) {
+                if (!destroyed && getSharedPreferences("bloodborne",MODE_PRIVATE).getBoolean("thor_lid_pause",true)) setPaused(true);
+            }
+        };
+        registerReceiver(screenOff,new android.content.IntentFilter(Intent.ACTION_SCREEN_OFF));
         gameDir=getSharedPreferences("bloodborne",MODE_PRIVATE).getString("game_dir",null);
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         if (Build.VERSION.SDK_INT>=28) {
@@ -360,6 +368,11 @@ public final class MainActivity extends Activity {
             getSharedPreferences("bloodborne",MODE_PRIVATE).edit().putBoolean("thor_tap_pause",on).apply();
             setDetail(tapPauseItem,tapPauseLabel());
         });
+        lidPauseItem=menuItem("ic_pause","Pause on lid close",lidPauseLabel(),() -> {
+            boolean on=!getSharedPreferences("bloodborne",MODE_PRIVATE).getBoolean("thor_lid_pause",true);
+            getSharedPreferences("bloodborne",MODE_PRIVATE).edit().putBoolean("thor_lid_pause",on).apply();
+            setDetail(lidPauseItem,lidPauseLabel());
+        });
         gameSettingsItem=menuItem("ic_settings","Game settings","",() -> {
             closeDrawer();
             new SettingsDialog(this,new File(BASE,"bbport.ini"),this::restartGame).showGame(online.playingOnline());
@@ -422,6 +435,11 @@ public final class MainActivity extends Activity {
         menuItem("ic_online","Couchside","Ultimate Living Room Gaming PC Remote · couchside.tv",() -> { closeDrawer(); ThorCompanionScreen.openSponsor(this); });
         menuItem("ic_claude_token","Support this Thor build","Optional tip · ko-fi.com/ets3d",() -> { closeDrawer(); ThorCompanionScreen.openKofi(this); });
         updateItem=menuItem("ic_refresh","Check for updates","Version "+updater.version(),() -> { closeDrawer(); updater.check(); });
+        updateAutoItem=menuItem("ic_refresh","Auto-check for updates",autoUpdateLabel(),() -> {
+            boolean on=!getSharedPreferences("bloodborne",MODE_PRIVATE).getBoolean("thor_auto_update",true);
+            getSharedPreferences("bloodborne",MODE_PRIVATE).edit().putBoolean("thor_auto_update",on).apply();
+            setDetail(updateAutoItem,autoUpdateLabel());
+        });
         menuItem("ic_bug_report","Report a problem","Save logs for a GitHub issue",() -> { closeDrawer(); report.show(); });
         menuItem("ic_tune","Debug options","Performance switches for testing",() -> {
             closeDrawer();
@@ -435,7 +453,7 @@ public final class MainActivity extends Activity {
         TextView about=text("Bloodborne · Thor integrated"+version,12,0xff8e9097);
         about.setPadding(dp(24),dp(8),dp(14),0);
         drawer.addView(about,new LinearLayout.LayoutParams(-1,-2));
-        TextView credit=text("by ducvd89@gmail.com\ngithub.com/ducvd89/Bloodborne-Android",10,0xff6f7178);
+        TextView credit=text("Thor companion by EmeryTech\ngithub.com/emerytech/Bloodborne-Android\n\nBloodborne Android port by ducvd89",10,0xff6f7178);
         credit.setPadding(dp(24),dp(2),dp(14),dp(14));
         drawer.addView(credit,new LinearLayout.LayoutParams(-1,-2));
         screen.addView(drawer,frame(dp(320),-1,Gravity.LEFT));
@@ -809,7 +827,7 @@ public final class MainActivity extends Activity {
         if (updater!=null) updater.resumed(); // back from the "install unknown apps" setting
         if (atlas!=null) atlas.resume();
         if (thorCompanion!=null) thorCompanion.resume();
-        if (!autoChecked && updater!=null) { autoChecked=true; main.postDelayed(() -> { if (!destroyed) updater.check(false); }, 4000); }
+        if (!autoChecked && updater!=null && getSharedPreferences("bloodborne",MODE_PRIVATE).getBoolean("thor_auto_update",true)) { autoChecked=true; main.postDelayed(() -> { if (!destroyed) updater.check(false); }, 4000); }
     }
     /** The game's activity moved to another display or its display changed (also reported by the display listener):
      *  the map's second screen is chosen again (never the display the game is on). */
@@ -1026,6 +1044,14 @@ public final class MainActivity extends Activity {
     private String tapPauseLabel() {
         return getSharedPreferences("bloodborne",MODE_PRIVATE).getBoolean("thor_tap_pause",true)
             ? "On · double-tap the game screen or Status tab" : "Off";
+    }
+    private String autoUpdateLabel() {
+        return getSharedPreferences("bloodborne",MODE_PRIVATE).getBoolean("thor_auto_update",true)
+            ? "On · a quiet check each launch" : "Off";
+    }
+    private String lidPauseLabel() {
+        return getSharedPreferences("bloodborne",MODE_PRIVATE).getBoolean("thor_lid_pause",true)
+            ? "On · pauses when the screen turns off" : "Off";
     }
     /** Pauses or resumes to a wanted state (not a toggle), for the companion's Help tab and map-peek gestures. */
     private void setPaused(boolean want) {
@@ -2121,7 +2147,7 @@ public final class MainActivity extends Activity {
         if (p!=null) { p.destroyForcibly(); try { p.waitFor(); } catch (InterruptedException e) { Thread.currentThread().interrupt(); } }
     }
     @Override protected void onDestroy() {
-        destroyed=true; if (thorCompanion!=null) thorCompanion.destroy(); if (nativeCpu!=null) nativeCpu.close(); if (rebuild!=null) rebuild.close(); AotBuildService.unlisten(buildListener); if (atlasDialog!=null) atlasDialog.close(); if (onlineDialog!=null) onlineDialog.close(); if (atlas!=null) atlas.destroy(); if (driverDownload!=null) driverDownload.close(); if (mods!=null) mods.close(); if (installer!=null) installer.close(); if (updater!=null) updater.close(); pad.reset(); rumble.close(); audio.stop(); main.removeCallbacksAndMessages(null);
+        destroyed=true; if (thorCompanion!=null) thorCompanion.destroy(); if (nativeCpu!=null) nativeCpu.close(); if (rebuild!=null) rebuild.close(); AotBuildService.unlisten(buildListener); if (atlasDialog!=null) atlasDialog.close(); if (onlineDialog!=null) onlineDialog.close(); if (atlas!=null) atlas.destroy(); if (driverDownload!=null) driverDownload.close(); if (mods!=null) mods.close(); if (installer!=null) installer.close(); if (updater!=null) updater.close(); if (screenOff!=null) { try { unregisterReceiver(screenOff); } catch (Exception ignored) {} } pad.reset(); rumble.close(); audio.stop(); main.removeCallbacksAndMessages(null);
         stopGame();
         worker.shutdownNow(); super.onDestroy();
     }

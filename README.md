@@ -1,6 +1,6 @@
 # Bloodborne · Thor Companion — integrated preview
 
-A personal, unofficial fork of [ducvd89/Bloodborne-Android](https://github.com/ducvd89/Bloodborne-Android), based on **android-2.2.0**, that builds Hunter's Companion into the game app for the **AYN Thor**. One installed app, one launch icon, one game-folder selection: the game runs on the upper screen and a touchscreen companion runs on the lower screen.
+A personal, unofficial **EmeryTech** fork of [ducvd89/Bloodborne-Android](https://github.com/ducvd89/Bloodborne-Android), based on **android-2.2.0**, that builds Hunter's Companion into the game app for the **AYN Thor**. One installed app, one launch icon, one game-folder selection: the game runs on the upper screen and a touchscreen companion runs on the lower screen.
 
 ![The lower-screen companion: tabs for the game menu, controls, artwork, a live status readout with a frame-time graph, and a Tune tab for the on-game HUD and graphics presets](https://github.com/emerytech/Bloodborne-Android/releases/download/thor-v0.10.0-preview.1/thor-0.10-panel.gif)
 
@@ -156,3 +156,5 @@ This fork is free. If this Thor build helps you, the **Buy me a Claude token** b
 ## License and credits
 
 The combined application is **GPL-3.0-or-later** as described upstream; new integration files use that license. The original [GPL-2.0 license text](LICENSE) is retained, alongside [GPL-3.0](COPYING-GPL-3.0) and upstream [third-party notices](tools/android/frontend/THIRD_PARTY_LICENSES.txt). Original source headers, notices and credits remain intact. This fork is not affiliated with the upstream authors or game publishers.
+
+**Credits:** the Thor companion integration is by **EmeryTech** ([emerytech/Bloodborne-Android](https://github.com/emerytech/Bloodborne-Android)). The underlying **Bloodborne Android port** is the work of **ducvd89** ([ducvd89/Bloodborne-Android](https://github.com/ducvd89/Bloodborne-Android)) and their upstream contributors.
