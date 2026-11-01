@@ -18,7 +18,7 @@
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <!-- allowAudioPlaybackCapture: screen recorders may record the game's sound (targetSdk 28 apps
          are not capturable by default on Android 10+). -->
-    <application android:label="Bloodborne · Thor Companion" android:icon="@drawable/icon"
+    <application android:label="Bloodborne · Thor Companion" android:icon="@mipmap/icon"
         android:theme="@style/GameTheme"
         android:allowBackup="false" android:extractNativeLibs="true" android:isGame="true" android:appCategory="game"
         android:requestLegacyExternalStorage="true"
