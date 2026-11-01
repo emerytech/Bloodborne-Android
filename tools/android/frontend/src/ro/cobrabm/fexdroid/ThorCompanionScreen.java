@@ -108,6 +108,8 @@ final class ThorCompanionScreen implements DisplayManager.DisplayListener {
      *  was not launched with the Atlas), for the Trophies tab's boss tracking. */
     private Supplier<AtlasFeatures.Flags> flagSource;
     void setFlagSource(Supplier<AtlasFeatures.Flags> f) { flagSource = f; }
+    private TrophyProgress trophyProgress;
+    void setTrophySource(TrophyProgress p) { trophyProgress = p; }
     /** Set by MainActivity: toggle pause, read paused state, read whether a game is running — for the always-visible
      *  Pause button in the companion header. */
     private Runnable pauseToggle;
@@ -294,7 +296,9 @@ final class ThorCompanionScreen implements DisplayManager.DisplayListener {
         ScrollView menuBox; LinearLayout menuList; View statusBox; TextView statusText;
         FrameGraphView graph; Button hudBtn, pauseBtn;
         java.util.LinkedHashMap<String,Button> presetButtons; TextView presetActiveLabel;
-        View trophiesBox; LinearLayout trophiesList; TextView trophiesHead; boolean trophiesVisible; int[] bossState;
+        View trophiesBox; LinearLayout trophiesList; TextView trophiesHead; boolean trophiesVisible, trophySeeded;
+        java.util.Set<Integer> trophyState = new java.util.HashSet<>();
+        final java.util.Set<Integer> trophyExpanded = new java.util.HashSet<>();
         boolean statusVisible, pausedForHelp; long lastCpuBusy = -1, lastCpuTotal = -1;
         String activeTab = "art";
         CompanionPresentation(Context context, Display display) { super(context, display); }
@@ -459,64 +463,79 @@ final class ThorCompanionScreen implements DisplayManager.DisplayListener {
                 + "Couchside, the ultimate living-room gaming PC remote, is at couchside.tv. The Bloodborne Android port is ducvd89's work (github.com/ducvd89/Bloodborne-Android). An optional tip for this Thor build: ko-fi.com/ets3d.");
             pausedForHelp = true; if (pauseSetter != null) pauseSetter.accept(true);
         }
-        /** Trophies tab: the game's boss-clear event flags (exposed by the Atlas) as a defeated/remaining board. */
+        /** Trophies tab: the full PS4 trophy board, read from the game's own trophy save (TrophyProgress). */
         void showTrophies() {
             showOnly(trophiesBox); activeTab = "trophies"; trophiesVisible = true; shade.setBackgroundColor(0xdf080b10);
-            renderTrophies(safeFlags());
+            renderTrophies(currentUnlocked());
         }
         View buildTrophiesBox() {
-            bossState = new int[TrophyCatalog.BOSSES.length]; java.util.Arrays.fill(bossState, -2);
             LinearLayout col = new LinearLayout(getContext()); col.setOrientation(LinearLayout.VERTICAL); col.setPadding(dp(6), dp(8), dp(6), dp(8));
             trophiesHead = text("TROPHIES", 12); trophiesHead.setTextColor(0xffc6ad76); trophiesHead.setTypeface(Typeface.DEFAULT_BOLD); trophiesHead.setPadding(dp(2), 0, 0, dp(8)); col.addView(trophiesHead);
             ScrollView sv = new ScrollView(getContext()); trophiesList = new LinearLayout(getContext()); trophiesList.setOrientation(LinearLayout.VERTICAL); sv.addView(trophiesList);
             col.addView(sv, new LinearLayout.LayoutParams(-1, 0, 1));
             return col;
         }
-        AtlasFeatures.Flags safeFlags() { try { return flagSource == null ? null : flagSource.get(); } catch (RuntimeException e) { return null; } }
-        /** Each tick: read the flags, celebrate any newly-defeated boss, and refresh the list when it is showing. */
-        void pollTrophies() {
-            if (bossState == null) { bossState = new int[TrophyCatalog.BOSSES.length]; java.util.Arrays.fill(bossState, -2); }
-            AtlasFeatures.Flags f = safeFlags();
-            if (f != null) {
-                for (int i = 0; i < TrophyCatalog.BOSSES.length; i++) {
-                    int now = f.get(TrophyCatalog.BOSSES[i].flag);
-                    if (bossState[i] == 0 && now == 1) flourish(TrophyCatalog.BOSSES[i]);
-                    if (now >= 0) bossState[i] = now;
-                }
-            }
-            if (trophiesVisible) renderTrophies(f);
+        /** Unlocked trophy ids from the game's trophy save; empty (never null) when nothing is tracked yet. */
+        java.util.Set<Integer> currentUnlocked() {
+            try { return trophyProgress == null ? java.util.Collections.<Integer>emptySet() : trophyProgress.unlocked(); }
+            catch (RuntimeException e) { return java.util.Collections.<Integer>emptySet(); }
         }
-        void renderTrophies(AtlasFeatures.Flags flags) {
+        TrophyCatalog.Trophy byId(int id) { for (TrophyCatalog.Trophy t : TrophyCatalog.TROPHIES) if (t.id == id) return t; return null; }
+        /** Each tick: read the unlocks, celebrate any new one, and refresh the board when it is showing. */
+        void pollTrophies() {
+            java.util.Set<Integer> now = currentUnlocked();
+            if (!trophySeeded) { trophyState = new java.util.HashSet<>(now); trophySeeded = true; if (trophiesVisible) renderTrophies(now); return; }
+            if (now.equals(trophyState)) return; // nothing changed: leave the board, its scroll and any open description alone
+            for (Integer id : now) if (!trophyState.contains(id)) { TrophyCatalog.Trophy t = byId(id); if (t != null) flourish(t); }
+            trophyState = new java.util.HashSet<>(now);
+            if (trophiesVisible) renderTrophies(now);
+        }
+        void renderTrophies(java.util.Set<Integer> unlocked) {
             if (trophiesList == null || trophiesHead == null) return;
             trophiesList.removeAllViews();
-            if (flags == null) {
-                trophiesHead.setText("TROPHIES");
-                TextView t = text("Install the Hunter's Atlas map pack and relaunch Bloodborne to track bosses here — it reads the game's own event flags. The map itself can stay off.", 13);
-                t.setPadding(dp(6), dp(10), dp(6), dp(8)); trophiesList.addView(t);
-                return;
+            int got = 0; for (TrophyCatalog.Trophy t : TrophyCatalog.TROPHIES) if (unlocked.contains(t.id)) got++;
+            trophiesHead.setText("TROPHIES   " + got + " / " + TrophyCatalog.total());
+            TextView hint = text("Tap a trophy for what it is. Unlocks appear here as the game awards them.", 10);
+            hint.setTextColor(0xff7c828c); hint.setPadding(dp(4), 0, dp(4), dp(8)); trophiesList.addView(hint);
+            boolean dlcHeaded = false;
+            for (TrophyCatalog.Trophy t : TrophyCatalog.TROPHIES) {
+                if (t.dlc && !dlcHeaded) { trophiesList.addView(sectionLabel("THE OLD HUNTERS")); dlcHeaded = true; }
+                trophiesList.addView(trophyRow(t, unlocked.contains(t.id)));
             }
-            int down = 0;
-            for (TrophyCatalog.Boss b : TrophyCatalog.BOSSES) if (flags.get(b.flag) == 1) down++;
-            trophiesHead.setText("TROPHIES   " + down + " / " + TrophyCatalog.total() + " bosses");
-            for (TrophyCatalog.Boss b : TrophyCatalog.BOSSES) trophiesList.addView(trophyRow(b, flags.get(b.flag) == 1));
         }
-        View trophyRow(TrophyCatalog.Boss b, boolean down) {
-            LinearLayout row = new LinearLayout(getContext()); row.setOrientation(LinearLayout.HORIZONTAL); row.setGravity(Gravity.CENTER_VERTICAL);
+        TextView sectionLabel(String s) {
+            TextView t = text(s, 10); t.setTextColor(0xff8c93a0); t.setTypeface(Typeface.DEFAULT_BOLD);
+            t.setPadding(dp(4), dp(12), 0, dp(5)); return t;
+        }
+        View trophyRow(TrophyCatalog.Trophy t, boolean got) {
+            int accent = TrophyCatalog.gradeColor(t.grade);
+            LinearLayout row = new LinearLayout(getContext()); row.setOrientation(LinearLayout.VERTICAL);
             row.setPadding(dp(10), dp(8), dp(10), dp(8));
             android.graphics.drawable.GradientDrawable bg = new android.graphics.drawable.GradientDrawable();
-            bg.setColor(down ? 0x33c6ad76 : 0x14ffffff); bg.setCornerRadius(dp(10)); row.setBackground(bg);
-            TextView mark = text(down ? "⚔" : "○", 18); mark.setTextColor(down ? 0xffe8c97a : 0xff6f7178); mark.setGravity(Gravity.CENTER);
-            row.addView(mark, new LinearLayout.LayoutParams(dp(28), -2));
+            bg.setColor(got ? (accent & 0x2effffff) : 0x12ffffff); bg.setCornerRadius(dp(10));
+            if (got) bg.setStroke(dp(1), (accent & 0x66ffffff));
+            row.setBackground(bg);
+            LinearLayout head = new LinearLayout(getContext()); head.setOrientation(LinearLayout.HORIZONTAL); head.setGravity(Gravity.CENTER_VERTICAL);
+            TextView mark = text(got ? "🏆" : "○", 16); mark.setTextColor(got ? accent : 0xff6f7178); mark.setGravity(Gravity.CENTER);
+            head.addView(mark, new LinearLayout.LayoutParams(dp(26), -2));
             LinearLayout cold = new LinearLayout(getContext()); cold.setOrientation(LinearLayout.VERTICAL); cold.setPadding(dp(8), 0, 0, 0);
-            TextView nm = text(b.name + (b.dlc ? "   · DLC" : ""), 14); nm.setTextColor(down ? 0xfff0e6cd : 0xffb8bcc2); if (down) nm.setTypeface(Typeface.DEFAULT_BOLD);
-            cold.addView(nm);
-            TextView sub = text(down ? "Defeated" : b.area, 10); sub.setTextColor(down ? 0xff8fbf73 : 0xff8c93a0); cold.addView(sub);
-            row.addView(cold, new LinearLayout.LayoutParams(0, -2, 1));
+            TextView nm = text(t.name, 14); nm.setTextColor(got ? 0xfff0e6cd : 0xffb8bcc2); if (got) nm.setTypeface(Typeface.DEFAULT_BOLD); cold.addView(nm);
+            TextView sub = text(TrophyCatalog.gradeName(t.grade) + (got ? " · Unlocked" : ""), 10); sub.setTextColor(got ? accent : 0xff8c93a0); cold.addView(sub);
+            head.addView(cold, new LinearLayout.LayoutParams(0, -2, 1));
+            TextView info = text("ⓘ", 14); info.setTextColor(0xff6f7178); info.setPadding(dp(6), 0, dp(2), 0); head.addView(info);
+            row.addView(head);
+            TextView desc = text(t.desc, 11); desc.setTextColor(0xffc3c9d1); desc.setPadding(dp(34), dp(6), dp(4), dp(2));
+            desc.setVisibility(trophyExpanded.contains(t.id) ? View.VISIBLE : View.GONE); row.addView(desc);
+            row.setOnClickListener(v -> {
+                boolean open = desc.getVisibility() == View.VISIBLE;
+                desc.setVisibility(open ? View.GONE : View.VISIBLE);
+                if (open) trophyExpanded.remove(t.id); else trophyExpanded.add(t.id);
+            });
             LinearLayout.LayoutParams rp = new LinearLayout.LayoutParams(-1, -2); rp.bottomMargin = dp(5); row.setLayoutParams(rp);
             return row;
         }
-        void flourish(TrophyCatalog.Boss b) {
-            android.widget.Toast.makeText(owner, "⚔  " + b.name + " — defeated!", android.widget.Toast.LENGTH_LONG).show();
+        void flourish(TrophyCatalog.Trophy t) {
+            android.widget.Toast.makeText(owner, "🏆  " + t.name + " — " + TrophyCatalog.gradeName(t.grade) + " trophy!", android.widget.Toast.LENGTH_LONG).show();
             try { android.os.Vibrator v = (android.os.Vibrator) owner.getSystemService(Context.VIBRATOR_SERVICE); if (v != null) v.vibrate(140); } catch (Exception ignored) { }
         }
         /** Home view: the art room. The panel opens here and every tab closes back to it. */

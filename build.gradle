@@ -2,7 +2,7 @@ plugins { id 'com.android.application' version '8.13.2' }
 android {
  namespace 'ro.cobrabm.fexdroid'
  compileSdk 35
- defaultConfig { applicationId 'com.emerytech.bloodbornethor'; minSdk 28; targetSdk 28; versionCode 13; versionName '2.2.0-thor.0.14.1' }
+ defaultConfig { applicationId 'com.emerytech.bloodbornethor'; minSdk 28; targetSdk 28; versionCode 14; versionName '2.2.0-thor.0.15.0' }
  sourceSets { main { manifest.srcFile 'out/thor-integrated/AndroidManifest.xml'; java.srcDirs=['tools/android/frontend/src']; res.srcDirs=['tools/android/frontend/res']; assets.srcDirs=['out/thor-integrated/assets','tools/thor/assets']; jniLibs.srcDirs=['out/thor-integrated/jniLibs'] } }
  compileOptions { sourceCompatibility JavaVersion.VERSION_1_8; targetCompatibility JavaVersion.VERSION_1_8 }
  packaging { jniLibs { useLegacyPackaging true; keepDebugSymbols += ['**/*.so']; pickFirsts += ['**/libzstd-jni*.so'] }
