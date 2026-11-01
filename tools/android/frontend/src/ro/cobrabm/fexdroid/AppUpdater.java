@@ -66,10 +66,16 @@ final class AppUpdater {
         String version="0";
         try { version=activity.getPackageManager().getPackageInfo(activity.getPackageName(),0).versionName; }
         catch (Exception ignored) {}
-        installed=version==null ? "0" : version;
+        installed=version==null ? "0" : thorVersion(version);
+    }
+    /** The Thor preview version used to compare against a release tag: the part after "-thor." in the
+     *  versionName (2.2.0-thor.0.10.0 -> 0.10.0), or the whole name when it has none. */
+    private static String thorVersion(String name) {
+        int i=name.indexOf("-thor.");
+        return i>=0 ? name.substring(i+6) : name;
     }
 
-    /** The installed versionName. */
+    /** The installed Thor preview version (e.g. 0.10.0). */
     String version() { return installed; }
 
     private int dp(float n) { return Math.round(n*activity.getResources().getDisplayMetrics().density); }

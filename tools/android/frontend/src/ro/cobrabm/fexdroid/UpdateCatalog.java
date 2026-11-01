@@ -12,15 +12,15 @@ import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
-/** The newest release of this app (tag android-<version>) on GitHub. The releases are listed and filtered
- *  by tag, as DriverCatalog does (the Turnip driver releases share the repository, so /latest would
- *  find either). Only an APK of the repository's own releases is offered: Bloodborne-<version>.apk, from
- *  a release that is neither a draft nor a pre-release. */
+/** The newest preview of this Thor fork (tag thor-v<version>-preview.<n>) on GitHub. Releases are listed
+ *  and filtered by tag; only an APK of this repository's own releases is offered:
+ *  Bloodborne-Thor-Companion-<version>-preview.apk, from a release that is not a draft. The fork's releases
+ *  are all pre-releases, so pre-releases are accepted. */
 final class UpdateCatalog {
-    private static final String API="https://api.github.com/repos/ducvd89/Bloodborne-Android/releases?per_page=50";
+    private static final String API="https://api.github.com/repos/emerytech/Bloodborne-Android/releases?per_page=50";
     /** Only assets of this repository's releases are downloaded, whatever the list says. */
-    static final String DOWNLOADS="https://github.com/ducvd89/Bloodborne-Android/releases/download/";
-    private static final Pattern TAG=Pattern.compile("android-(\\d{1,9}(?:\\.\\d{1,9})*)");
+    static final String DOWNLOADS="https://github.com/emerytech/Bloodborne-Android/releases/download/";
+    private static final Pattern TAG=Pattern.compile("thor-v(\\d{1,9}(?:\\.\\d{1,9})*)-preview\\.\\d{1,9}");
     private static final Pattern VERSION=Pattern.compile("^\\d{1,9}(?:\\.\\d{1,9})*");
     private static final int NOTES=4000;
 
@@ -62,10 +62,10 @@ final class UpdateCatalog {
         Release best=null;
         for (int i=0;i<releases.length();++i) {
             JSONObject release=releases.optJSONObject(i);
-            if (release==null || release.optBoolean("draft") || release.optBoolean("prerelease")) continue;
+            if (release==null || release.optBoolean("draft")) continue; // the fork's releases are all pre-releases
             Matcher tag=TAG.matcher(text(release,"tag_name"));
             if (!tag.matches()) continue;
-            String version=tag.group(1), name="Bloodborne-"+version+".apk";
+            String version=tag.group(1), name="Bloodborne-Thor-Companion-"+version+"-preview.apk";
             if (best!=null && compare(version,best.version)<=0) continue;
             JSONArray assets=release.optJSONArray("assets");
             String url="", digest="", shaUrl="";
