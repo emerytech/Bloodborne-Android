@@ -117,6 +117,13 @@ final class ThorCompanionScreen implements DisplayManager.DisplayListener {
      *  returns the lower screen to the artwork home. */
     void showMenuTab() { main.post(() -> { if (panel != null) panel.showMenu(); }); }
     void showArtHome() { main.post(() -> { if (panel != null) panel.showArt(); }); }
+    /** Companion swipe gestures, run by MainActivity: left = Atlas on the lower screen (no pause); up = pause and
+     *  open the full map on the upper screen; down = close that map and resume. */
+    private Runnable gestureLeft, gestureUp, gestureDown;
+    void setGestures(Runnable left, Runnable up, Runnable down) { gestureLeft = left; gestureUp = up; gestureDown = down; }
+    /** Pause/resume to a wanted state (for the Help tab, which pauses while open). */
+    private java.util.function.Consumer<Boolean> pauseSetter;
+    void setPauseSetter(java.util.function.Consumer<Boolean> f) { pauseSetter = f; }
     /** Rotating discovery tips on the artwork home screen — a fresh one each time you return home. */
     static final String[] TIPS = {
         "Swipe in from the left edge of the game screen to open the menu.",
@@ -283,7 +290,7 @@ final class ThorCompanionScreen implements DisplayManager.DisplayListener {
         ScrollView menuBox; LinearLayout menuList; View statusBox; TextView statusText;
         FrameGraphView graph; Button hudBtn, pauseBtn;
         java.util.LinkedHashMap<String,Button> presetButtons; TextView presetActiveLabel;
-        boolean statusVisible; long lastCpuBusy = -1, lastCpuTotal = -1;
+        boolean statusVisible, pausedForHelp; long lastCpuBusy = -1, lastCpuTotal = -1;
         String activeTab = "art";
         CompanionPresentation(Context context, Display display) { super(context, display); }
         int dp(int value) { return Math.round(value * getContext().getResources().getDisplayMetrics().density); }
@@ -323,12 +330,47 @@ final class ThorCompanionScreen implements DisplayManager.DisplayListener {
         @Override protected void onCreate(Bundle state) {
             super.onCreate(state);
             Window window = getWindow();
-            window.addFlags(WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE | WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL
-                | WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+            // Non-focusable (the gamepad keeps driving the game) but touch-MODAL: while the panel is up it owns the
+            // lower screen's touches, so swipe gestures aren't stolen by the launcher that runs behind it.
+            window.addFlags(WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE | WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
             window.getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_FULLSCREEN | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
                 | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY | View.SYSTEM_UI_FLAG_LAYOUT_STABLE | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
                 | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION);
-            FrameLayout root = new FrameLayout(getContext()); root.setBackgroundColor(0xff101923);
+            final boolean[] flung = { false };
+            final android.view.GestureDetector panelGestures = new android.view.GestureDetector(getContext(),
+                new android.view.GestureDetector.SimpleOnGestureListener() {
+                    @Override public boolean onFling(android.view.MotionEvent e1, android.view.MotionEvent e2, float vx, float vy) {
+                        if (e1 == null || e2 == null) return false;
+                        float dx = e2.getX() - e1.getX(), dy = e2.getY() - e1.getY(), min = dp(40);
+                        // Posted so enabling Atlas doesn't dismiss the panel out from under the gesture being delivered.
+                        if (Math.abs(dx) > Math.abs(dy) && dx < -min && gestureLeft != null) { flung[0] = true; main.post(gestureLeft); return true; }
+                        if (Math.abs(dy) >= Math.abs(dx) && Math.abs(dy) > min) {
+                            if (dy < 0 && gestureUp != null) { flung[0] = true; main.post(gestureUp); return true; }
+                            if (dy > 0 && gestureDown != null) { flung[0] = true; main.post(gestureDown); return true; }
+                        }
+                        return false;
+                    }
+                });
+            // Observe every touch; children still handle their own taps, scrolls and the slider. A fling fires onFling
+            // above; a slower but deliberate VERTICAL swipe is caught on UP (horizontal stays fling-only so the
+            // horizontal brightness slider is never mistaken for a swipe-left). flung[] dedupes the two paths.
+            FrameLayout root = new FrameLayout(getContext()) {
+                float dX, dY; long dT;
+                @Override public boolean dispatchTouchEvent(android.view.MotionEvent ev) {
+                    int a = ev.getActionMasked();
+                    if (a == android.view.MotionEvent.ACTION_DOWN) { flung[0] = false; dX = ev.getX(); dY = ev.getY(); dT = android.os.SystemClock.uptimeMillis(); }
+                    panelGestures.onTouchEvent(ev);
+                    if (a == android.view.MotionEvent.ACTION_UP && !flung[0]) {
+                        float dx = ev.getX() - dX, dy = ev.getY() - dY; long dt = android.os.SystemClock.uptimeMillis() - dT;
+                        if (dt < 700 && Math.abs(dy) > dp(64) && Math.abs(dy) > Math.abs(dx) * 1.5f) {
+                            if (dy < 0 && gestureUp != null) main.post(gestureUp);
+                            else if (dy > 0 && gestureDown != null) main.post(gestureDown);
+                        }
+                    }
+                    return super.dispatchTouchEvent(ev);
+                }
+            };
+            root.setBackgroundColor(0xff101923);
             background = new ImageView(getContext()); background.setScaleType(ImageView.ScaleType.CENTER_CROP);
             root.addView(background, new FrameLayout.LayoutParams(-1, -1));
             shade = new View(getContext()); root.addView(shade, new FrameLayout.LayoutParams(-1, -1));
@@ -351,7 +393,7 @@ final class ThorCompanionScreen implements DisplayManager.DisplayListener {
             LinearLayout tabs2 = new LinearLayout(getContext()); content.addView(tabs2);
             button(tabs2, "Status", () -> toggle("status"));
             button(tabs2, "Tune", () -> toggle("tune"));
-            button(tabs2, "Help", () -> help(owner));
+            button(tabs2, "Help", () -> toggle("help"));
             scroll = new ScrollView(getContext()); body = text("", 16); body.setPadding(0, dp(6), 0, dp(6)); scroll.addView(body);
             content.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1));
             menuBox = new ScrollView(getContext()); menuList = new LinearLayout(getContext()); menuList.setOrientation(LinearLayout.VERTICAL);
@@ -373,21 +415,42 @@ final class ThorCompanionScreen implements DisplayManager.DisplayListener {
         }
         /** Tabs toggle against the art-room home: tap opens the view, tap the same tab again closes to artwork. */
         void toggle(String tab) {
+            if (!"help".equals(tab) && pausedForHelp) resumeHelp();
             if (tab.equals(activeTab)) { showArt(); return; }
             switch (tab) {
                 case "menu": showMenu(); break;
                 case "controls": showControls(); break;
                 case "status": showStatus(); break;
                 case "tune": showTune(); break;
+                case "help": showHelp(); break;
                 default: showArt();
             }
         }
+        void resumeHelp() { pausedForHelp = false; if (pauseSetter != null) pauseSetter.accept(false); }
         /** Dispatcher for the game-menu "Thor companion" dialog, which sets the artwork/controls preference. */
         void showMode() {
             if (prefs.getBoolean("thor_companion_art", true)) showArt(); else showControls();
         }
+        /** Help tab: shows on this lower screen and pauses the game while open (tap Help again, or any tab, to resume). */
+        void showHelp() {
+            showOnly(scroll); activeTab = "help"; shade.setBackgroundColor(0xef080b10);
+            body.setGravity(Gravity.START);
+            body.setText("GAME PAUSED while Help is open — tap Help again (or any tab) to resume.\n\n"
+                + "ONE APP · TWO SCREENS\nThe game runs on the upper screen; this touchscreen is its companion. Tap a tab to open it, tap the same tab again to return to the artwork home.\n\n"
+                + "GESTURES\n"
+                + "• Swipe in from the left edge of the upper screen to open the game menu (it also shows here).\n"
+                + "• Double-tap the upper screen — or the Status tab — to pause and resume.\n"
+                + "• Swipe left here to put the Hunter's Atlas map on this lower screen while you keep playing up top.\n"
+                + "• Swipe up here to pause and open the full map on the upper screen; swipe up again to close it and resume.\n"
+                + "• The ⏸ Pause button up top works from any tab.\n\n"
+                + "TABS\nMenu — the game menu, mirrored here.  Controls — the button layout.  Status — live FPS, 1% low, a frame-time graph and temperature.  Tune — the on-game HUD and one-tap graphics presets.  Atlas — the Hunter's map.\n\n"
+                + DISCLOSURE + "\n\n"
+                + "Couchside, the ultimate living-room gaming PC remote, is at couchside.tv. The Bloodborne Android port is ducvd89's work (github.com/ducvd89/Bloodborne-Android). An optional tip for this Thor build: ko-fi.com/ets3d.");
+            pausedForHelp = true; if (pauseSetter != null) pauseSetter.accept(true);
+        }
         /** Home view: the art room. The panel opens here and every tab closes back to it. */
         void showArt() {
+            if (pausedForHelp) resumeHelp();
             showOnly(scroll); activeTab = "art";
             shade.setBackgroundColor(0x40080b10);
             body.setGravity(Gravity.CENTER);

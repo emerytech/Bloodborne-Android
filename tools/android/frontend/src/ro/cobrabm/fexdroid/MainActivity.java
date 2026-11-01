@@ -448,6 +448,8 @@ public final class MainActivity extends Activity {
             thorCompanion.setPauseControl(this::togglePause,
                 () -> { synchronized (pauseLock) { return userPaused; } },
                 () -> { synchronized (pauseLock) { return gamePid>0; } });
+            thorCompanion.setGestures(this::atlasOnBottom, this::mapPeekToggle, this::mapPeekClose);
+            thorCompanion.setPauseSetter(this::setPaused);
         }
     }
 
@@ -1025,6 +1027,49 @@ public final class MainActivity extends Activity {
         return getSharedPreferences("bloodborne",MODE_PRIVATE).getBoolean("thor_tap_pause",true)
             ? "On · double-tap the game screen or Status tab" : "Off";
     }
+    /** Pauses or resumes to a wanted state (not a toggle), for the companion's Help tab and map-peek gestures. */
+    private void setPaused(boolean want) {
+        boolean change=false;
+        synchronized (pauseLock) { if (gamePid>0 && !onlineGame && userPaused!=want) { userPaused=want; change=true; } }
+        if (change) applyPause();
+    }
+    private void gesturesToast(String msg) { android.widget.Toast.makeText(this,msg,android.widget.Toast.LENGTH_SHORT).show(); }
+    /** Swipe left on the companion: show the Hunter's Atlas on the lower (second) screen, game still running up top. */
+    private void atlasOnBottom() {
+        if (atlas==null) return;
+        if (!atlas.installed()) { gesturesToast("Hunter's Atlas isn't installed"); return; }
+        // Only force second-screen mode when a map peek left it floating; otherwise behave exactly like the Atlas tab
+        // (a single setEnabled), which avoids a displaysChanged churn that can drop the panel to the launcher.
+        if (AtlasScreen.MODE_FLOAT.equals(atlas.mode())) atlas.setMode(AtlasScreen.MODE_SCREEN);
+        atlas.setEnabled(true);
+    }
+    private boolean inMapPeek; private boolean mapPeekWasEnabled; private String mapPeekWasMode;
+    /** Swipe up on the companion: pause and open the full Atlas map over the game (upper) screen for a close look. */
+    private void mapPeekOpen() {
+        if (atlas==null || fullMapOpen) return;
+        if (!atlas.installed()) { gesturesToast("Hunter's Atlas isn't installed"); return; }
+        if (!inMapPeek) { mapPeekWasEnabled=atlas.enabled(); mapPeekWasMode=atlas.mode(); }
+        atlas.setMode(AtlasScreen.MODE_FLOAT); atlas.setEnabled(true);
+        openFullMap();
+        if (!fullMapOpen) { // map pack not ready, or no game
+            gesturesToast("Map isn't ready yet");
+            if (!mapPeekWasEnabled) atlas.setEnabled(false);
+            return;
+        }
+        inMapPeek=true; setPaused(true);
+    }
+    /** Closes the peeked full map, resumes, and restores the Atlas state from before the peek. */
+    private void mapPeekClose() {
+        if (fullMapOpen) closeFullMap();
+        setPaused(false);
+        if (inMapPeek) {
+            inMapPeek=false;
+            if (!mapPeekWasEnabled) atlas.setEnabled(false);
+            else if (mapPeekWasMode!=null) atlas.setMode(mapPeekWasMode);
+        }
+    }
+    /** Swipe up on the companion toggles the map peek: open it, or (when already peeking) close and resume. */
+    private void mapPeekToggle() { if (inMapPeek || fullMapOpen) mapPeekClose(); else mapPeekOpen(); }
     /** The game ended or is about to be killed or started again: no pause outlives it. signal: it still runs, so it is
      *  continued first (a stopped process is killed all the same; the order is for safety). Any thread. */
     private void releasePause(boolean signal) {
