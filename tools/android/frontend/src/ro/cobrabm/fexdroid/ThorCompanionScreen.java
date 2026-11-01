@@ -2,15 +2,19 @@
 package ro.cobrabm.fexdroid;
 
 import android.app.Activity;
+import android.app.ActivityManager;
 import android.app.AlertDialog;
 import android.app.Presentation;
 import android.content.Context;
+import android.content.Intent;
+import android.content.IntentFilter;
 import android.content.SharedPreferences;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.Color;
 import android.graphics.Typeface;
 import android.hardware.display.DisplayManager;
+import android.os.BatteryManager;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
@@ -24,20 +28,38 @@ import android.widget.FrameLayout;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
+import android.widget.SeekBar;
 import android.widget.TextView;
+import java.io.BufferedReader;
 import java.io.File;
+import java.io.FileReader;
+import java.text.SimpleDateFormat;
+import java.util.Date;
+import java.util.List;
+import java.util.Locale;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.function.BooleanSupplier;
 import java.util.function.Supplier;
 
-/** Same app/process as the game. Non-focusable Presentation keeps physical controls on the game. */
+/** Same app/process as the game. The Presentation is non-focusable so the physical gamepad keeps driving the
+ *  game, but the lower screen is a touchscreen: its tabs, game menu and controls are tap-driven. */
 final class ThorCompanionScreen implements DisplayManager.DisplayListener {
     static final String DISCLOSURE = "Full disclosure: I had this companion integration written entirely with an LLM "
         + "so I could play Bloodborne on my AYN Thor quickly and easily. I’m sharing it so others can avoid repeating "
         + "the work and spending their own tokens on the same setup. This is a personal experimental project. "
         + "The Bloodborne Android port and its tools are the work of ducvd89 and their upstream contributors; "
         + "I am not claiming authorship of them.";
+
+    /** One row of the game menu, mirrored onto the lower screen. Shares the same Runnable as the top drawer. */
+    static final class MenuAction {
+        final String icon, title, detail;
+        final Runnable action;
+        MenuAction(String icon, String title, String detail, Runnable action) {
+            this.icon = icon; this.title = title; this.detail = detail; this.action = action;
+        }
+    }
+
     private final Activity owner;
     private final Supplier<String> gameDirectory;
     private final BooleanSupplier atlasUsesScreen;
@@ -47,6 +69,7 @@ final class ThorCompanionScreen implements DisplayManager.DisplayListener {
     private final Handler main = new Handler(Looper.getMainLooper());
     private final ExecutorService images = Executors.newSingleThreadExecutor();
     private CompanionPresentation panel;
+    private List<MenuAction> menu;
     private boolean resumed, destroyed, listening;
     private String imagePath;
     private int imageGeneration;
@@ -59,6 +82,9 @@ final class ThorCompanionScreen implements DisplayManager.DisplayListener {
         displays = (DisplayManager)owner.getSystemService(Context.DISPLAY_SERVICE);
         prefs = owner.getSharedPreferences("bloodborne", Context.MODE_PRIVATE);
     }
+    /** The game menu rows to mirror on the lower screen. The top swipe-drawer keeps its own copy; both share
+     *  these Runnables, so an action behaves the same from either screen. */
+    void setMenu(List<MenuAction> actions) { menu = actions; }
     void resume() {
         if (destroyed) return;
         resumed = true;
@@ -90,6 +116,7 @@ final class ThorCompanionScreen implements DisplayManager.DisplayListener {
         String directory = gameDirectory.get();
         String path = directory == null ? "" : new File(directory, "sce_sys/pic1.png").getAbsolutePath();
         if (!path.equals(imagePath)) loadArt(path);
+        if (panel != null) panel.tickStatus();
     }
     private void loadArt(String path) {
         imagePath = path; final int generation = ++imageGeneration;
@@ -124,10 +151,12 @@ final class ThorCompanionScreen implements DisplayManager.DisplayListener {
     private void help(Context context) {
         new AlertDialog.Builder(context).setTitle("One app · two screens")
             .setMessage(DISCLOSURE + "\n\nThis lower panel is built into the game app. It uses the game folder you already selected; "
-                + "there is no separate companion app or installer. Controls are a reference, not touch input. Artwork is read from your own files. "
+                + "there is no separate companion app or installer. The lower screen is a touchscreen: use its tabs for the game Menu, "
+                + "Controls reference, Artwork, live Status and Couchside. The physical gamepad still drives the game on the upper screen. "
+                + "The top swipe-in drawer stays available too, so the same game menu is reachable from either screen. "
                 + "The panel closes when you leave the game activity and returns when you resume. Enable Hunter’s Atlas to use its second-screen map instead. Choosing controls or artwork from the Thor companion menu switches the map off; it can be enabled again in Hunter’s Atlas. "
                 + "No game assets, saves or generated native game code are bundled. This preview has its own private save/settings storage; "
-                + "it does not import or replace another installed Bloodborne app.\n\nCouchside: the ultimate living room gaming PC remote at couchside.tv. Please support ducvd89\u2019s Bloodborne port via the link by the title. Optional tip for this Thor integration: ko-fi.com/ets3d.")
+                + "it does not import or replace another installed Bloodborne app.\n\nCouchside: the ultimate living room gaming PC remote at couchside.tv. Please support ducvd89’s Bloodborne port via the link by the title. Optional tip for this Thor integration: ko-fi.com/ets3d.")
             .setNeutralButton("Couchside", (dialog, which) -> openSponsor(context))
             .setPositiveButton("Got it", null).show();
     }
@@ -156,7 +185,9 @@ final class ThorCompanionScreen implements DisplayManager.DisplayListener {
     @Override public void onDisplayChanged(int id) { refresh(); }
 
     private final class CompanionPresentation extends Presentation {
-        ImageView background; View shade; TextView body;
+        ImageView background; View shade; TextView body; ScrollView scroll; View couchsideBox;
+        ScrollView menuBox; LinearLayout menuList; View statusBox; TextView statusText;
+        boolean statusVisible; long lastCpuBusy = -1, lastCpuTotal = -1;
         CompanionPresentation(Context context, Display display) { super(context, display); }
         int dp(int value) { return Math.round(value * getContext().getResources().getDisplayMetrics().density); }
         TextView text(String value, int size) {
@@ -165,7 +196,7 @@ final class ThorCompanionScreen implements DisplayManager.DisplayListener {
         void button(LinearLayout row, String label, Runnable action) {
             Button b = new Button(getContext()); b.setText(label); b.setTextSize(12); b.setAllCaps(false); b.setTextColor(0xffe5ddcd);
             b.setBackgroundTintList(android.content.res.ColorStateList.valueOf(0xc3242930));
-            LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(0, dp(48), 1); p.setMargins(dp(2), dp(4), dp(2), dp(4));
+            LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(0, dp(44), 1); p.setMargins(dp(2), dp(3), dp(2), dp(3));
             row.addView(b, p); b.setOnClickListener(view -> action.run());
         }
         @Override protected void onCreate(Bundle state) {
@@ -182,45 +213,165 @@ final class ThorCompanionScreen implements DisplayManager.DisplayListener {
             shade = new View(getContext()); root.addView(shade, new FrameLayout.LayoutParams(-1, -1));
             LinearLayout content = new LinearLayout(getContext()); content.setOrientation(LinearLayout.VERTICAL); content.setPadding(dp(12), dp(8), dp(12), dp(8));
             root.addView(content, new FrameLayout.LayoutParams(-1, -1));
-            TextView title = text("HUNTER’S COMPANION", 23); title.setTextColor(0xffb59b71); title.setTypeface(Typeface.SERIF, Typeface.BOLD); content.addView(title);
+            TextView title = text("HUNTER’S COMPANION", 21); title.setTextColor(0xffb59b71); title.setTypeface(Typeface.SERIF, Typeface.BOLD); content.addView(title);
             content.addView(text("THOR INTEGRATED PREVIEW · UNOFFICIAL", 10));
-            LinearLayout tabs = new LinearLayout(getContext()); content.addView(tabs);
-            button(tabs, "Controls", () -> { prefs.edit().putBoolean("thor_companion_art", false).apply(); showMode(); });
-            button(tabs, "Artwork", () -> { prefs.edit().putBoolean("thor_companion_art", true).apply(); showMode(); });
-            button(tabs, "Help", () -> help(owner));
-            ScrollView scroll = new ScrollView(getContext()); body = text("", 16); body.setPadding(0, dp(6), 0, dp(6)); scroll.addView(body);
+            LinearLayout tabs1 = new LinearLayout(getContext()); content.addView(tabs1);
+            button(tabs1, "Menu", () -> showMenu());
+            button(tabs1, "Controls", () -> { prefs.edit().putBoolean("thor_companion_art", false).apply(); showMode(); });
+            button(tabs1, "Artwork", () -> { prefs.edit().putBoolean("thor_companion_art", true).apply(); showMode(); });
+            LinearLayout tabs2 = new LinearLayout(getContext()); content.addView(tabs2);
+            button(tabs2, "Status", () -> showStatus());
+            button(tabs2, "Couchside", () -> showCouchside());
+            button(tabs2, "Help", () -> help(owner));
+            scroll = new ScrollView(getContext()); body = text("", 16); body.setPadding(0, dp(6), 0, dp(6)); scroll.addView(body);
             content.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1));
-            content.addView(couchsideStrip());
-            content.addView(text("Same game app · physical controls stay on the upper screen", 10));
+            menuBox = new ScrollView(getContext()); menuList = new LinearLayout(getContext()); menuList.setOrientation(LinearLayout.VERTICAL);
+            menuBox.addView(menuList); menuBox.setVisibility(View.GONE);
+            content.addView(menuBox, new LinearLayout.LayoutParams(-1, 0, 1));
+            statusBox = buildStatusBox(); statusBox.setVisibility(View.GONE);
+            content.addView(statusBox, new LinearLayout.LayoutParams(-1, 0, 1));
+            couchsideBox = buildCouchsideBox(); couchsideBox.setVisibility(View.GONE);
+            content.addView(couchsideBox, new LinearLayout.LayoutParams(-1, 0, 1));
+            content.addView(text("Same app · both screens · tap a tab above", 10));
             setContentView(root); window.setLayout(-1, -1); showMode();
         }
+        void showOnly(View which) {
+            statusVisible = false;
+            if (scroll != null) scroll.setVisibility(which == scroll ? View.VISIBLE : View.GONE);
+            if (menuBox != null) menuBox.setVisibility(which == menuBox ? View.VISIBLE : View.GONE);
+            if (statusBox != null) statusBox.setVisibility(which == statusBox ? View.VISIBLE : View.GONE);
+            if (couchsideBox != null) couchsideBox.setVisibility(which == couchsideBox ? View.VISIBLE : View.GONE);
+        }
         void showMode() {
+            showOnly(scroll);
             boolean art = prefs.getBoolean("thor_companion_art", false);
             shade.setBackgroundColor(art ? 0x40080b10 : 0xcf080b10);
             body.setGravity(art ? Gravity.CENTER : Gravity.START);
             body.setText(art ? "Your journey awaits.\n\nRest at a lamp. The Dream keeps your echoes." : "COMBAT\nR1 · Attack       R2 · Heavy / hold to charge\nL1 · Transform    L2 · Left-hand (firearm / shield)\nParry · Fire L2 as the enemy strikes, then R1 up close for a visceral attack\nRally · Attack right after taking damage to win health back\n\nFACE BUTTONS — BY POSITION\nTop △ · Blood vial / heal\nRight ○ · Dodge / quickstep / hold to run\nBottom × · Interact / confirm\nLeft □ · Use selected quick item\n\nMOVEMENT & CAMERA\nLeft stick · Move      Right stick · Camera\nR3 · Lock on / center camera\nD-pad up · Cycle hunter tools\nD-pad down · Cycle quick items\nD-pad left / right · Switch left / right weapon\n\nMENUS\nOptions · Pause / inventory      Touchpad · Gestures\nHold Options at a lamp · Return to the Hunter's Dream\n\nQUICK TIPS\nDied? Your Blood Echoes wait where you fell, or on the enemy that took them.\nInsight is spent at the Bath Messengers and quietly reshapes the night.\nLook for shortcuts; most loop back to a lamp you already lit.");
         }
-        /** Display-only Couchside promo on the second screen: scan the QR to open couchside.tv. The panel is
-         *  non-focusable so physical controls stay on the game; this code is here to be scanned, not tapped. */
-        View couchsideStrip() {
+        /** Menu tab: the game drawer mirrored onto the lower screen. Rebuilt on open so titles reflect current
+         *  state. Actions share the top drawer's Runnables; any dialog they open appears on the upper screen. */
+        void showMenu() {
+            if (menuList != null) {
+                menuList.removeAllViews();
+                TextView h = text("GAME MENU · tap an item", 12); h.setTextColor(0xffc6ad76); h.setTypeface(Typeface.DEFAULT_BOLD);
+                h.setPadding(dp(4), dp(2), 0, dp(8)); menuList.addView(h);
+                if (menu == null || menu.isEmpty()) {
+                    menuList.addView(text("Game menu unavailable.", 13));
+                } else {
+                    for (MenuAction a : menu) menuList.addView(menuRow(a));
+                }
+            }
+            showOnly(menuBox); shade.setBackgroundColor(0xdf080b10);
+        }
+        View menuRow(MenuAction a) {
             LinearLayout row = new LinearLayout(getContext()); row.setOrientation(LinearLayout.HORIZONTAL);
-            row.setGravity(Gravity.CENTER_VERTICAL); row.setPadding(dp(8), dp(6), dp(8), dp(6));
+            row.setGravity(Gravity.CENTER_VERTICAL); row.setPadding(dp(10), dp(9), dp(10), dp(9)); row.setClickable(true);
             android.graphics.drawable.GradientDrawable bg = new android.graphics.drawable.GradientDrawable();
-            bg.setColor(0xcf0b1118); bg.setCornerRadius(dp(10)); bg.setStroke(dp(1), 0x55c6ad76); row.setBackground(bg);
+            bg.setColor(0x22c6ad76); bg.setCornerRadius(dp(10)); row.setBackground(bg);
+            ImageView ic = new ImageView(getContext());
+            int id = a.icon == null ? 0 : getContext().getResources().getIdentifier(a.icon, "drawable", getContext().getPackageName());
+            if (id != 0) ic.setImageResource(id);
+            ic.setColorFilter(0xffc6ad76);
+            LinearLayout.LayoutParams ip = new LinearLayout.LayoutParams(dp(22), dp(22)); ip.rightMargin = dp(12);
+            row.addView(ic, ip);
+            LinearLayout col = new LinearLayout(getContext()); col.setOrientation(LinearLayout.VERTICAL);
+            col.addView(text(a.title, 14));
+            if (a.detail != null && !a.detail.isEmpty()) { TextView d = text(a.detail, 10); d.setTextColor(0xff9aa0a8); col.addView(d); }
+            row.addView(col, new LinearLayout.LayoutParams(0, -2, 1));
+            row.setOnClickListener(v -> { try { a.action.run(); } catch (RuntimeException ignored) { } });
+            LinearLayout.LayoutParams rp = new LinearLayout.LayoutParams(-1, -2); rp.bottomMargin = dp(6); row.setLayoutParams(rp);
+            return row;
+        }
+        /** Status tab: live CPU, RAM, battery/temperature and clock (updated each second), plus a brightness
+         *  slider for this lower screen. CPU and some readings are best-effort and show — when unavailable. */
+        void showStatus() {
+            showOnly(statusBox); statusVisible = true; shade.setBackgroundColor(0xdf080b10); updateStatus();
+        }
+        View buildStatusBox() {
+            LinearLayout col = new LinearLayout(getContext()); col.setOrientation(LinearLayout.VERTICAL); col.setPadding(dp(6), dp(8), dp(6), dp(8));
+            TextView head = text("STATUS", 12); head.setTextColor(0xffc6ad76); head.setTypeface(Typeface.DEFAULT_BOLD); head.setPadding(dp(2), 0, 0, dp(8)); col.addView(head);
+            statusText = text("…", 16); statusText.setLineSpacing(dp(7), 1); statusText.setTypeface(Typeface.MONOSPACE); col.addView(statusText);
+            TextView bl = text("Panel brightness", 12); bl.setTextColor(0xffb59b71);
+            LinearLayout.LayoutParams blp = new LinearLayout.LayoutParams(-2, -2); blp.topMargin = dp(16); bl.setLayoutParams(blp); col.addView(bl);
+            SeekBar sb = new SeekBar(getContext()); sb.setMax(100);
+            int saved = prefs.getInt("thor_companion_brightness", 80); sb.setProgress(saved); applyBrightness(saved);
+            sb.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+                @Override public void onProgressChanged(SeekBar s, int p, boolean u) { applyBrightness(Math.max(5, p)); }
+                @Override public void onStartTrackingTouch(SeekBar s) { }
+                @Override public void onStopTrackingTouch(SeekBar s) { prefs.edit().putInt("thor_companion_brightness", Math.max(5, s.getProgress())).apply(); }
+            });
+            col.addView(sb, new LinearLayout.LayoutParams(-1, -2));
+            return col;
+        }
+        void applyBrightness(int pct) {
+            Window w = getWindow(); if (w == null) return;
+            WindowManager.LayoutParams lp = w.getAttributes();
+            lp.screenBrightness = Math.max(0.05f, Math.min(1f, pct / 100f));
+            w.setAttributes(lp);
+        }
+        void tickStatus() { if (statusVisible) updateStatus(); }
+        void updateStatus() {
+            if (statusText == null) return;
+            StringBuilder sb = new StringBuilder();
+            sb.append(new SimpleDateFormat("EEE  h:mm:ss a", Locale.getDefault()).format(new Date())).append('\n');
+            int cpu = readCpuPercent();
+            sb.append("CPU   ").append(cpu < 0 ? "—" : cpu + "%").append('\n');
+            try {
+                ActivityManager am = (ActivityManager) getContext().getSystemService(Context.ACTIVITY_SERVICE);
+                ActivityManager.MemoryInfo mi = new ActivityManager.MemoryInfo(); am.getMemoryInfo(mi);
+                long usedMb = (mi.totalMem - mi.availMem) / 1048576L, totalMb = mi.totalMem / 1048576L;
+                sb.append("RAM   ").append(usedMb).append(" / ").append(totalMb).append(" MB\n");
+            } catch (Exception e) { sb.append("RAM   —\n"); }
+            try {
+                Intent b = getContext().registerReceiver(null, new IntentFilter(Intent.ACTION_BATTERY_CHANGED));
+                if (b != null) {
+                    int lvl = b.getIntExtra(BatteryManager.EXTRA_LEVEL, -1), scale = b.getIntExtra(BatteryManager.EXTRA_SCALE, 100);
+                    int pct = lvl < 0 ? -1 : Math.round(lvl * 100f / Math.max(1, scale));
+                    int t = b.getIntExtra(BatteryManager.EXTRA_TEMPERATURE, Integer.MIN_VALUE);
+                    sb.append("BATT  ").append(pct < 0 ? "—" : pct + "%");
+                    if (t != Integer.MIN_VALUE) sb.append("   ").append(String.format(Locale.US, "%.1f°C", t / 10f));
+                    sb.append('\n');
+                }
+            } catch (Exception ignored) { }
+            statusText.setText(sb.toString().trim());
+        }
+        int readCpuPercent() {
+            try (BufferedReader r = new BufferedReader(new FileReader("/proc/stat"))) {
+                String line = r.readLine();
+                if (line == null || !line.startsWith("cpu ")) return -1;
+                String[] p = line.trim().split("\\s+");
+                long total = 0, idle = 0;
+                for (int i = 1; i < p.length; i++) { long v = Long.parseLong(p[i]); total += v; if (i == 4 || i == 5) idle += v; }
+                long busy = total - idle;
+                int pct = -1;
+                if (lastCpuTotal >= 0 && total > lastCpuTotal) pct = Math.round((busy - lastCpuBusy) * 100f / (total - lastCpuTotal));
+                lastCpuBusy = busy; lastCpuTotal = total;
+                return pct < 0 ? -1 : Math.min(100, pct);
+            } catch (Exception e) { return -1; }
+        }
+        /** Couchside tab: the QR shows only while this tab is selected (not persisted), so it is not on screen
+         *  the whole time. The lower screen is a touchscreen, so the card also opens couchside.tv when tapped. */
+        void showCouchside() {
+            showOnly(couchsideBox); shade.setBackgroundColor(0xcf080b10);
+        }
+        View buildCouchsideBox() {
+            LinearLayout col = new LinearLayout(getContext()); col.setOrientation(LinearLayout.VERTICAL);
+            col.setGravity(Gravity.CENTER); col.setPadding(dp(8), dp(6), dp(8), dp(6));
+            TextView head = text("COUCHSIDE", 18); head.setTextColor(0xffb59b71); head.setTypeface(Typeface.SERIF, Typeface.BOLD);
+            head.setGravity(Gravity.CENTER); col.addView(head);
+            TextView tag = text("The ultimate living-room gaming PC remote", 12); tag.setGravity(Gravity.CENTER);
+            LinearLayout.LayoutParams tp = new LinearLayout.LayoutParams(-2, -2); tp.bottomMargin = dp(10); tag.setLayoutParams(tp);
+            col.addView(tag);
             ImageView qr = new ImageView(getContext());
             qr.setImageResource(getContext().getResources().getIdentifier("couchside_qr", "drawable", getContext().getPackageName()));
-            qr.setBackgroundColor(0xffffffff); qr.setPadding(dp(3), dp(3), dp(3), dp(3));
-            LinearLayout.LayoutParams qp = new LinearLayout.LayoutParams(dp(58), dp(58)); qp.rightMargin = dp(10);
-            row.addView(qr, qp);
-            LinearLayout col = new LinearLayout(getContext()); col.setOrientation(LinearLayout.VERTICAL);
-            TextView head = text("COUCHSIDE", 15); head.setTextColor(0xffb59b71); head.setTypeface(Typeface.SERIF, Typeface.BOLD);
-            col.addView(head);
-            col.addView(text("The ultimate living-room gaming PC remote", 11));
-            col.addView(text("Scan to open couchside.tv", 10));
-            row.addView(col, new LinearLayout.LayoutParams(0, -2, 1));
-            LinearLayout.LayoutParams rp = new LinearLayout.LayoutParams(-1, -2); rp.topMargin = dp(6); rp.bottomMargin = dp(4);
-            row.setLayoutParams(rp);
-            return row;
+            qr.setBackgroundColor(0xffffffff); qr.setPadding(dp(6), dp(6), dp(6), dp(6));
+            col.addView(qr, new LinearLayout.LayoutParams(dp(150), dp(150)));
+            TextView cap = text("Scan to open couchside.tv  ·  or tap here", 11); cap.setGravity(Gravity.CENTER);
+            LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(-2, -2); cp.topMargin = dp(10); cap.setLayoutParams(cp);
+            col.addView(cap);
+            col.setClickable(true); col.setOnClickListener(v -> openSponsor(owner));
+            return col;
         }
     }
 }

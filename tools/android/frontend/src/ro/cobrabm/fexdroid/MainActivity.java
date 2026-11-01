@@ -31,6 +31,8 @@ import java.io.BufferedReader;
 import java.io.File;
 import java.io.InputStreamReader;
 import java.io.PrintWriter;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -90,6 +92,7 @@ public final class MainActivity extends Activity {
     /** Hunter's Atlas: the live map on the second screen (AtlasScreen), its menu (AtlasDialog) and the drawer row. */
     private AtlasScreen atlas;
     private ThorCompanionScreen thorCompanion;
+    private final List<ThorCompanionScreen.MenuAction> companionMenu = new ArrayList<>();
     private AtlasDialog atlasDialog;
     private LinearLayout atlasItem;
     /** Native CPU (the recompiled game code, required to play): its status/import page, its drawer row, the rebuild dialog (RebuildDialog:
@@ -420,6 +423,8 @@ public final class MainActivity extends Activity {
         drawer.addView(credit,new LinearLayout.LayoutParams(-1,-2));
         screen.addView(drawer,frame(dp(320),-1,Gravity.LEFT));
         setContentView(screen);
+        // Mirror the game menu onto the lower companion screen; the top swipe-drawer keeps its own copy.
+        if (thorCompanion!=null) thorCompanion.setMenu(companionMenu);
     }
 
     private void restartGame() {
@@ -534,7 +539,9 @@ public final class MainActivity extends Activity {
         row.addView(texts,new LinearLayout.LayoutParams(0,-2,1));
         LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,-2); lp.bottomMargin=dp(2);
         row.setMinimumHeight(dp(48));
-        drawerItems.addView(row,lp); return row;
+        drawerItems.addView(row,lp);
+        companionMenu.add(new ThorCompanionScreen.MenuAction(icon,title,detail,action));
+        return row;
     }
     private static void setDetail(LinearLayout row,String value) {
         TextView detail=row==null ? null : (TextView)row.findViewWithTag("detail");

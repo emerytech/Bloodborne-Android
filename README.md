@@ -12,7 +12,7 @@ The Bloodborne Android port, compiler, runtime and Hunter’s Atlas are the work
 
 ## Setup
 
-1. Install **[Bloodborne-Thor-Companion-0.7.0-preview.apk](https://github.com/emerytech/Bloodborne-Android/releases/download/thor-v0.7.0-preview.1/Bloodborne-Thor-Companion-0.7.0-preview.apk)** from the [integrated preview release](https://github.com/emerytech/Bloodborne-Android/releases/tag/thor-v0.7.0-preview.1). Do not install an upstream APK over this fork.
+1. Install **[Bloodborne-Thor-Companion-0.8.0-preview.apk](https://github.com/emerytech/Bloodborne-Android/releases/download/thor-v0.8.0-preview.1/Bloodborne-Thor-Companion-0.8.0-preview.apk)** from the [integrated preview release](https://github.com/emerytech/Bloodborne-Android/releases/tag/thor-v0.8.0-preview.1). Do not install an upstream APK over this fork.
 2. Open **Bloodborne · Thor Companion**. Grant storage access and choose your own extracted **Bloodborne 1.09** folder containing `eboot.bin`, `sce_module`, and `sce_sys`.
 3. Existing compatible `aot/` code is imported automatically. Otherwise follow upstream’s on-device or PC rebuild instructions using your own game files.
 4. Use the lower screen’s **Controls**, **Artwork**, and **Help** buttons. The game menu’s **Thor companion** entry also offers hide/show and **Hunter’s Atlas map**. Choose controls/artwork in that menu to switch Atlas off; re-enable the map through Hunter’s Atlas whenever you want it.
@@ -45,7 +45,7 @@ Open **Mods → Browse / download mods** to search the starter catalog. Direct d
 
 ## Support and Couchside
 
-This fork is free. If the upstream port helps you, support its author ducvd89 via the primary **Buy me a Claude token** badge by the title (PayPal). A smaller secondary badge offers an optional **[Ko-fi](https://ko-fi.com/ets3d)** tip for this Thor integration. The second-screen companion panel also carries a scannable **[Couchside](https://couchside.tv)** promo QR — the ultimate living-room gaming PC remote — and the app menu and companion Help link both. No purchase is required and nothing is gated. Links open in your browser.
+This fork is free. If the upstream port helps you, support its author ducvd89 via the primary **Buy me a Claude token** badge by the title (PayPal). A smaller secondary badge offers an optional **[Ko-fi](https://ko-fi.com/ets3d)** tip for this Thor integration. The second-screen companion panel has a **[Couchside](https://couchside.tv)** tab that shows a scannable QR on demand — the ultimate living-room gaming PC remote — and, because the lower screen is a touchscreen, the card also opens couchside.tv on tap. The app menu and companion Help link it too. No purchase is required and nothing is gated. Links open in your browser.
 
 ## License and credits
 
