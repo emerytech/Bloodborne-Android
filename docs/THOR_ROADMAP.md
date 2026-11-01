@@ -9,7 +9,7 @@ files, nothing copyrighted is bundled.**
 - [x] **Trophy case (Phase 1)** — boss tracker reading the game's event flags via the Atlas shm; live unlock flourish + vibrate. (0.14.0)
 - [x] **Decouple the trophy case from the map** — flags flow whenever the Atlas pack is *installed*, not only when the game is launched with the map on. The map display stays gated by its own toggle. (0.14.1)
 - [x] **Expand to the full trophy list** — all 40 PS4 trophies (CUSA03173), read from the game's own trophy save (shadPS4 `<trophyconf>` XML) rather than Atlas boss flags, so endings, weapons, runes, chalices and every boss are tracked. Each trophy carries its official name, description and grade; tap a trophy to read what it is. Supersedes the event-flag boss tracker. (0.15.0)
-- [ ] **Journal / notes tab** — scratchpad for NPC quests and item locations.
+- [x] **Journal / notes tab** — a companion tab with a free-text notes scratchpad (NPC quests, item spots, chalice glyphs, passwords), kept in the app's settings. The lower panel is non-focusable so the gamepad keeps driving the game, so editing opens a dialog on the main screen and the saved text shows back on the tab. (0.18.0)
 - [x] **Save auto-backup rotation** — on each launch, snapshots the saves to Downloads/Bloodborne-autosave-* before play (skipped when unchanged), keeps the last 12; the manual Bloodborne-saves-* backups are never pruned. On/off toggle in Menu → Storage. (0.16.0)
 - [ ] **Screenshot gallery** on the companion.
 - [ ] **Native player stats** — extend `bbport` to write blood echoes / level / deaths into the Atlas shm → death counter, run stats, build tracker. (native C++ change)

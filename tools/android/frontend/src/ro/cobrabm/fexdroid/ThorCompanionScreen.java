@@ -24,6 +24,7 @@ import android.view.View;
 import android.view.Window;
 import android.view.WindowManager;
 import android.widget.Button;
+import android.widget.EditText;
 import android.widget.FrameLayout;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
@@ -319,6 +320,7 @@ final class ThorCompanionScreen implements DisplayManager.DisplayListener {
         View trophiesBox; LinearLayout trophiesList; TextView trophiesHead; boolean trophiesVisible, trophySeeded;
         java.util.Set<Integer> trophyState = new java.util.HashSet<>();
         final java.util.Set<Integer> trophyExpanded = new java.util.HashSet<>();
+        View journalBox; TextView journalView;
         boolean statusVisible, pausedForHelp; long lastCpuBusy = -1, lastCpuTotal = -1;
         String activeTab = "art";
         CompanionPresentation(Context context, Display display) { super(context, display); }
@@ -425,6 +427,7 @@ final class ThorCompanionScreen implements DisplayManager.DisplayListener {
             button(tabs2, "Help", () -> toggle("help"));
             LinearLayout tabs3 = new LinearLayout(getContext()); content.addView(tabs3);
             button(tabs3, "Trophies", () -> toggle("trophies"));
+            button(tabs3, "Journal", () -> toggle("journal"));
             scroll = new ScrollView(getContext()); body = text("", 16); body.setPadding(0, dp(6), 0, dp(6)); scroll.addView(body);
             content.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1));
             menuBox = new ScrollView(getContext()); menuList = new LinearLayout(getContext()); menuList.setOrientation(LinearLayout.VERTICAL);
@@ -436,6 +439,8 @@ final class ThorCompanionScreen implements DisplayManager.DisplayListener {
             content.addView(tuneBox, new LinearLayout.LayoutParams(-1, 0, 1));
             trophiesBox = buildTrophiesBox(); trophiesBox.setVisibility(View.GONE);
             content.addView(trophiesBox, new LinearLayout.LayoutParams(-1, 0, 1));
+            journalBox = buildJournalBox(); journalBox.setVisibility(View.GONE);
+            content.addView(journalBox, new LinearLayout.LayoutParams(-1, 0, 1));
             content.addView(text("Same app · both screens · artwork is home · tap a tab to open, tap it again to close", 10));
             setContentView(root); window.setLayout(-1, -1); showArt();
         }
@@ -446,6 +451,7 @@ final class ThorCompanionScreen implements DisplayManager.DisplayListener {
             if (statusBox != null) statusBox.setVisibility(which == statusBox ? View.VISIBLE : View.GONE);
             if (tuneBox != null) tuneBox.setVisibility(which == tuneBox ? View.VISIBLE : View.GONE);
             if (trophiesBox != null) trophiesBox.setVisibility(which == trophiesBox ? View.VISIBLE : View.GONE);
+            if (journalBox != null) journalBox.setVisibility(which == journalBox ? View.VISIBLE : View.GONE);
         }
         /** Tabs toggle against the art-room home: tap opens the view, tap the same tab again closes to artwork. */
         void toggle(String tab) {
@@ -458,6 +464,7 @@ final class ThorCompanionScreen implements DisplayManager.DisplayListener {
                 case "tune": showTune(); break;
                 case "help": showHelp(); break;
                 case "trophies": showTrophies(); break;
+                case "journal": showJournal(); break;
                 default: showArt();
             }
         }
@@ -557,6 +564,44 @@ final class ThorCompanionScreen implements DisplayManager.DisplayListener {
         void flourish(TrophyCatalog.Trophy t) {
             android.widget.Toast.makeText(owner, "🏆  " + t.name + " — " + TrophyCatalog.gradeName(t.grade) + " trophy!", android.widget.Toast.LENGTH_LONG).show();
             try { android.os.Vibrator v = (android.os.Vibrator) owner.getSystemService(Context.VIBRATOR_SERVICE); if (v != null) v.vibrate(140); } catch (Exception ignored) { }
+        }
+        /** Journal tab: a notes scratchpad kept in the app's settings (thor_journal). This lower panel is
+         *  non-focusable so the gamepad keeps driving the game, so it takes no soft keyboard; editing opens a
+         *  dialog on the main (focusable) screen and the saved text is shown back here. */
+        void showJournal() {
+            showOnly(journalBox); activeTab = "journal"; shade.setBackgroundColor(0xdf080b10);
+            refreshJournal();
+        }
+        View buildJournalBox() {
+            LinearLayout col = new LinearLayout(getContext()); col.setOrientation(LinearLayout.VERTICAL); col.setPadding(dp(6), dp(8), dp(6), dp(8));
+            LinearLayout head = new LinearLayout(getContext()); head.setOrientation(LinearLayout.HORIZONTAL); head.setGravity(Gravity.CENTER_VERTICAL);
+            TextView h = text("JOURNAL", 12); h.setTextColor(0xffc6ad76); h.setTypeface(Typeface.DEFAULT_BOLD);
+            head.addView(h, new LinearLayout.LayoutParams(0, -2, 1));
+            Button edit = new Button(getContext()); edit.setAllCaps(false); edit.setTextSize(12); edit.setText("✎ Edit notes"); edit.setTextColor(0xffe5ddcd);
+            edit.setBackgroundTintList(android.content.res.ColorStateList.valueOf(0xc3242930)); edit.setOnClickListener(v -> editJournal());
+            head.addView(edit, new LinearLayout.LayoutParams(-2, dp(38)));
+            col.addView(head);
+            ScrollView sv = new ScrollView(getContext()); journalView = text("", 14); journalView.setPadding(dp(4), dp(8), dp(4), dp(8)); sv.addView(journalView);
+            col.addView(sv, new LinearLayout.LayoutParams(-1, 0, 1));
+            return col;
+        }
+        void refreshJournal() {
+            if (journalView == null) return;
+            String notes = prefs.getString("thor_journal", "");
+            boolean empty = notes.trim().isEmpty();
+            journalView.setText(empty ? "No notes yet. Tap “Edit notes” to jot down NPC quests, item spots, chalice glyphs or passwords — kept on this device." : notes);
+            journalView.setTextColor(empty ? 0xff8c93a0 : 0xfff0e6cd);
+        }
+        /** Edits the notes on the main screen, which can take the keyboard, then shows the result back on this panel. */
+        void editJournal() {
+            final EditText in = new EditText(owner);
+            in.setText(prefs.getString("thor_journal", ""));
+            in.setInputType(android.text.InputType.TYPE_CLASS_TEXT | android.text.InputType.TYPE_TEXT_FLAG_MULTI_LINE | android.text.InputType.TYPE_TEXT_FLAG_CAP_SENTENCES);
+            in.setGravity(Gravity.TOP | Gravity.START); in.setMinLines(6); in.setSelection(in.getText().length());
+            FrameLayout wrap = new FrameLayout(owner); int p = dp(18); wrap.setPadding(p, dp(8), p, 0); wrap.addView(in);
+            new AlertDialog.Builder(owner).setTitle("Hunter's journal").setView(wrap)
+                .setPositiveButton("Save", (d, w) -> { prefs.edit().putString("thor_journal", in.getText().toString()).apply(); refreshJournal(); })
+                .setNegativeButton("Cancel", null).show();
         }
         /** Home view: the art room. The panel opens here and every tab closes back to it. */
         void showArt() {
