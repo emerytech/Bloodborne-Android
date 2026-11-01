@@ -7,7 +7,7 @@ files, nothing copyrighted is bundled.**
 ## Achievements / QoL
 
 - [x] **Trophy case (Phase 1)** — boss tracker reading the game's event flags via the Atlas shm; live unlock flourish + vibrate. (0.14.0)
-- [ ] **Decouple the trophy case from the map** — expose the flags whenever the Atlas pack is *installed*, not only when the game is launched with the map on.
+- [x] **Decouple the trophy case from the map** — flags flow whenever the Atlas pack is *installed*, not only when the game is launched with the map on. The map display stays gated by its own toggle. (0.14.1)
 - [ ] **Expand the trophy list** — past the 16 story/DLC bosses toward the full 40 PS4 trophies (endings, covenants, chalice dungeons, insight milestones); needs sourcing a few more event-flag ids.
 - [ ] **Journal / notes tab** — scratchpad for NPC quests and item locations.
 - [ ] **Save auto-backup rotation** — periodic backups keeping the last N (manual backup already ships).

@@ -646,7 +646,10 @@ final class AtlasScreen implements DisplayManager.DisplayListener {
     void prepareLaunch(List<String> extra) {
         launchedWithAtlas=false;
         main.post(() -> { state.reset(); everValid=false; miniFed=false; miniDirty=false; sMapped=true; updateMini(); });
-        if (!wanted()) return;
+        // Expose the event flags whenever the pack is installed, not only when the map is on, so the companion's
+        // Trophies tab works without having to launch with the map showing. The map DISPLAY stays gated by enabled()
+        // (wanted()) in sync()/needTick(), so this does not turn the map on.
+        if (!installed()) return;
         try {
             AtlasModel m=model();
             File shm=new File(base,"atlas.shm"), flags=new File(base,"atlas.flags");

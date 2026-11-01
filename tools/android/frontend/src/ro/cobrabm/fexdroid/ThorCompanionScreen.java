@@ -491,7 +491,7 @@ final class ThorCompanionScreen implements DisplayManager.DisplayListener {
             trophiesList.removeAllViews();
             if (flags == null) {
                 trophiesHead.setText("TROPHIES");
-                TextView t = text("Turn on Hunter's Atlas and relaunch Bloodborne to track bosses here — it reads the game's own event flags.", 13);
+                TextView t = text("Install the Hunter's Atlas map pack and relaunch Bloodborne to track bosses here — it reads the game's own event flags. The map itself can stay off.", 13);
                 t.setPadding(dp(6), dp(10), dp(6), dp(8)); trophiesList.addView(t);
                 return;
             }
