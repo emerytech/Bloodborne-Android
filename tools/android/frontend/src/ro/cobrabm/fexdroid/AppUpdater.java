@@ -111,9 +111,12 @@ final class AppUpdater {
     }
 
     // ---- The check ----
-    void check() {
+    void check() { check(true); }
+    /** announce=false: a quiet background check (used on launch) — no "Checking…", "Up to date" or
+     *  "Could not check" feedback; it only pops the dialog when a newer preview exists. */
+    void check(boolean announce) {
         if (checking) return;
-        checking=true; host.detail("Checking…");
+        checking=true; if (announce) host.detail("Checking…");
         Thread t=new Thread(() -> {
             UpdateCatalog.Release found=null; String failure=null;
             try { found=UpdateCatalog.latest(); }
@@ -125,9 +128,9 @@ final class AppUpdater {
             main.post(() -> {
                 checking=false;
                 if (!live()) return;
-                if (problem!=null) { host.detail("Could not check: "+problem); toast("Could not check for updates: "+problem); }
+                if (problem!=null) { if (announce) { host.detail("Could not check: "+problem); toast("Could not check for updates: "+problem); } }
                 else if (release==null || UpdateCatalog.compare(release.version,installed)<=0) {
-                    host.detail("Up to date"); toast("Bloodborne "+installed+" is up to date");
+                    if (announce) { host.detail("Up to date"); toast("Bloodborne "+installed+" is up to date"); }
                 } else {
                     host.detail(release.version+" available");
                     offer(release);

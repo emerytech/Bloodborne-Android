@@ -14,6 +14,7 @@ import android.os.Looper;
 import android.text.InputFilter;
 import android.view.Gravity;
 import android.view.KeyEvent;
+import android.view.GestureDetector;
 import android.view.MotionEvent;
 import android.view.SurfaceHolder;
 import android.view.SurfaceView;
@@ -52,13 +53,14 @@ public final class MainActivity extends Activity {
     private final ExecutorService worker=Executors.newSingleThreadExecutor();
     private FrameLayout screen;
     private SurfaceView surface;
+    private GestureDetector tapPauseDetector; // double-tap the game screen to pause/resume (setting thor_tap_pause)
     private View scrim, handle;
     private LinearLayout drawer;
     private LinearLayout drawerItems;
     private TextView status;
     private TextView hud; // on-game performance overlay (upper screen); visibility driven by the "thor_hud" pref
     private View resume;
-    private LinearLayout pauseItem;
+    private LinearLayout pauseItem, tapPauseItem;
     private TextView pausedChip;
     private LinearLayout vibrationItem, gameSettingsItem, cheatsItem, modsItem, graphicsItem, frameGenItem, driverItem, controllerItem, remapItem, folderItem;
     private TouchControllerOverlay controllerOverlay;
@@ -134,6 +136,7 @@ public final class MainActivity extends Activity {
     private int miniL=-1, miniT, miniS;
     private GameInstaller installer;
     private AppUpdater updater;
+    private boolean autoChecked; // one quiet update check per launch (pops the dialog only if a newer preview exists)
     private ReportDialog report;
     private LinearLayout updateItem;
     /** Runs when the Lossless.dll picker returns (the graphics settings show the new state). */
@@ -225,7 +228,11 @@ public final class MainActivity extends Activity {
             @Override public void surfaceDestroyed(SurfaceHolder h) {}
         });
         // Touches on the game display send no mouse input (the game is played with a controller).
-        surface.setOnTouchListener((v,e) -> true);
+        tapPauseDetector=new GestureDetector(this,new GestureDetector.SimpleOnGestureListener() {
+            @Override public boolean onDoubleTap(MotionEvent e) { if (tapPauseActive()) togglePause(); return true; }
+        });
+        // The surface still consumes all touches (the game is gamepad-driven); we also watch for a double-tap to pause.
+        surface.setOnTouchListener((v,e) -> { tapPauseDetector.onTouchEvent(e); return true; });
         status=text("Starting Bloodborne…",18,0xffc6ad76); status.setGravity(Gravity.CENTER);
         screen.addView(status,frame(-1,-1,Gravity.CENTER));
         status.setClickable(false);
@@ -341,11 +348,6 @@ public final class MainActivity extends Activity {
         LinearLayout.LayoutParams bp=new LinearLayout.LayoutParams(-2,-2); bp.leftMargin=dp(6);
         titleRow.addView(donateBadge(),bp);
         drawerItems.addView(titleRow,new LinearLayout.LayoutParams(-1,-2));
-        // Secondary, muted tip pill for this Thor integration (Ko-fi), under ducvd89's primary badge.
-        LinearLayout kofiRow=new LinearLayout(this); kofiRow.setGravity(Gravity.CENTER_VERTICAL|Gravity.END);
-        kofiRow.setPadding(0,dp(3),dp(2),0);
-        kofiRow.addView(kofiBadge(),new LinearLayout.LayoutParams(-2,-2));
-        drawerItems.addView(kofiRow,new LinearLayout.LayoutParams(-1,-2));
         TextView hint=text("Swipe left or press ○ to return",12,0xff8e9097);
         hint.setPadding(dp(10),dp(2),0,dp(6));
         drawerItems.addView(hint,new LinearLayout.LayoutParams(-1,-2));
@@ -353,6 +355,11 @@ public final class MainActivity extends Activity {
         section("Game");
         resume=menuItem("ic_play","Back to game",null,() -> closeDrawer());
         pauseItem=menuItem("ic_pause","Pause game","",() -> togglePause());
+        tapPauseItem=menuItem("ic_pause","Double-tap to pause",tapPauseLabel(),() -> {
+            boolean on=!getSharedPreferences("bloodborne",MODE_PRIVATE).getBoolean("thor_tap_pause",true);
+            getSharedPreferences("bloodborne",MODE_PRIVATE).edit().putBoolean("thor_tap_pause",on).apply();
+            setDetail(tapPauseItem,tapPauseLabel());
+        });
         gameSettingsItem=menuItem("ic_settings","Game settings","",() -> {
             closeDrawer();
             new SettingsDialog(this,new File(BASE,"bbport.ini"),this::restartGame).showGame(online.playingOnline());
@@ -434,7 +441,16 @@ public final class MainActivity extends Activity {
         screen.addView(drawer,frame(dp(320),-1,Gravity.LEFT));
         setContentView(screen);
         // Mirror the game menu onto the lower companion screen; the top swipe-drawer keeps its own copy.
-        if (thorCompanion!=null) { thorCompanion.setMenu(companionMenu); thorCompanion.setPresetApplier(this::applyGraphicsPreset); }
+        if (thorCompanion!=null) {
+            thorCompanion.setMenu(companionMenu);
+            thorCompanion.setPresetApplier(this::applyGraphicsPreset);
+            thorCompanion.setActivePreset(this::activeGraphicsPreset);
+            thorCompanion.setPauseControl(this::togglePause,
+                () -> { synchronized (pauseLock) { return userPaused; } },
+                () -> { synchronized (pauseLock) { return gamePid>0; } });
+            thorCompanion.setGestures(this::atlasOnBottom, this::mapPeekToggle, this::mapPeekClose);
+            thorCompanion.setPauseSetter(this::setPaused);
+        }
     }
 
     private void restartGame() {
@@ -451,14 +467,14 @@ public final class MainActivity extends Activity {
     }
 
     /** The "Buy me a Claude token" pill beside the title: the coin and two lines of script on yellow,
-     *  opens PayPal.Me in the browser. Focusable for the gamepad, with a gold edge when focused. */
+     *  opens Ko-fi in the browser. Focusable for the gamepad, with a gold edge when focused. */
     private View donateBadge() {
         LinearLayout pill=new LinearLayout(this); pill.setGravity(Gravity.CENTER_VERTICAL);
         pill.setPadding(dp(4),dp(3),dp(5),dp(3));
         pill.setContentDescription("Buy me a Claude token");
         pill.setFocusable(true); pill.setClickable(true);
         pill.setOnClickListener(v -> {
-            try { startActivity(new Intent(Intent.ACTION_VIEW,Uri.parse("https://paypal.me/Ducvd89"))); }
+            try { startActivity(new Intent(Intent.ACTION_VIEW,Uri.parse("https://ko-fi.com/ets3d"))); }
             catch (Exception ex) { android.util.Log.w("Bloodborne","donate link: "+ex); }
         });
         android.graphics.drawable.StateListDrawable states=new android.graphics.drawable.StateListDrawable();
@@ -604,6 +620,7 @@ public final class MainActivity extends Activity {
     private void openDrawer() {
         if (drawerOpen) return;
         drawerOpen=true; controllerOverlay.release(); pad.reset(); rumble.setDrawer(true);
+        if (thorCompanion!=null) thorCompanion.showMenuTab(); // mirror the menu onto the lower screen too
         refreshDrawer();
         applyOverlayVisibility();
         handle.setVisibility(View.GONE);
@@ -615,6 +632,7 @@ public final class MainActivity extends Activity {
     private void closeDrawer() {
         if (!drawerOpen) return;
         drawerOpen=false; pad.reset(); rumble.setDrawer(false);
+        if (thorCompanion!=null) thorCompanion.showArtHome(); // lower screen returns to the artwork home
         updatePauseUi(); // also shows the controller again
         scrim.animate().cancel(); drawer.animate().cancel();
         scrim.animate().alpha(0).setDuration(180).withEndAction(() -> scrim.setVisibility(View.GONE)).start();
@@ -791,6 +809,7 @@ public final class MainActivity extends Activity {
         if (updater!=null) updater.resumed(); // back from the "install unknown apps" setting
         if (atlas!=null) atlas.resume();
         if (thorCompanion!=null) thorCompanion.resume();
+        if (!autoChecked && updater!=null) { autoChecked=true; main.postDelayed(() -> { if (!destroyed) updater.check(false); }, 4000); }
     }
     /** The game's activity moved to another display or its display changed (also reported by the display listener):
      *  the map's second screen is chosen again (never the display the game is on). */
@@ -996,6 +1015,61 @@ public final class MainActivity extends Activity {
         }
         applyPause();
     }
+    /** Whether a double-tap on the game screen (or the Status tab) should toggle pause right now: the setting is on,
+     *  no drawer/full map is open, the on-screen touch controller is not showing, and a game is running. */
+    private boolean tapPauseActive() {
+        if (!getSharedPreferences("bloodborne",MODE_PRIVATE).getBoolean("thor_tap_pause",true)) return false;
+        if (drawerOpen || fullMapOpen) return false;
+        if (controllerOverlay!=null && controllerOverlay.getVisibility()==View.VISIBLE) return false;
+        synchronized (pauseLock) { return gamePid>0; }
+    }
+    private String tapPauseLabel() {
+        return getSharedPreferences("bloodborne",MODE_PRIVATE).getBoolean("thor_tap_pause",true)
+            ? "On · double-tap the game screen or Status tab" : "Off";
+    }
+    /** Pauses or resumes to a wanted state (not a toggle), for the companion's Help tab and map-peek gestures. */
+    private void setPaused(boolean want) {
+        boolean change=false;
+        synchronized (pauseLock) { if (gamePid>0 && !onlineGame && userPaused!=want) { userPaused=want; change=true; } }
+        if (change) applyPause();
+    }
+    private void gesturesToast(String msg) { android.widget.Toast.makeText(this,msg,android.widget.Toast.LENGTH_SHORT).show(); }
+    /** Swipe left on the companion: show the Hunter's Atlas on the lower (second) screen, game still running up top. */
+    private void atlasOnBottom() {
+        if (atlas==null) return;
+        if (!atlas.installed()) { gesturesToast("Hunter's Atlas isn't installed"); return; }
+        // Only force second-screen mode when a map peek left it floating; otherwise behave exactly like the Atlas tab
+        // (a single setEnabled), which avoids a displaysChanged churn that can drop the panel to the launcher.
+        if (AtlasScreen.MODE_FLOAT.equals(atlas.mode())) atlas.setMode(AtlasScreen.MODE_SCREEN);
+        atlas.setEnabled(true);
+    }
+    private boolean inMapPeek; private boolean mapPeekWasEnabled; private String mapPeekWasMode;
+    /** Swipe up on the companion: pause and open the full Atlas map over the game (upper) screen for a close look. */
+    private void mapPeekOpen() {
+        if (atlas==null || fullMapOpen) return;
+        if (!atlas.installed()) { gesturesToast("Hunter's Atlas isn't installed"); return; }
+        if (!inMapPeek) { mapPeekWasEnabled=atlas.enabled(); mapPeekWasMode=atlas.mode(); }
+        atlas.setMode(AtlasScreen.MODE_FLOAT); atlas.setEnabled(true);
+        openFullMap();
+        if (!fullMapOpen) { // map pack not ready, or no game
+            gesturesToast("Map isn't ready yet");
+            if (!mapPeekWasEnabled) atlas.setEnabled(false);
+            return;
+        }
+        inMapPeek=true; setPaused(true);
+    }
+    /** Closes the peeked full map, resumes, and restores the Atlas state from before the peek. */
+    private void mapPeekClose() {
+        if (fullMapOpen) closeFullMap();
+        setPaused(false);
+        if (inMapPeek) {
+            inMapPeek=false;
+            if (!mapPeekWasEnabled) atlas.setEnabled(false);
+            else if (mapPeekWasMode!=null) atlas.setMode(mapPeekWasMode);
+        }
+    }
+    /** Swipe up on the companion toggles the map peek: open it, or (when already peeking) close and resume. */
+    private void mapPeekToggle() { if (inMapPeek || fullMapOpen) mapPeekClose(); else mapPeekOpen(); }
     /** The game ended or is about to be killed or started again: no pause outlives it. signal: it still runs, so it is
      *  continued first (a stopped process is killed all the same; the order is for safety). Any thread. */
     private void releasePause(boolean signal) {
@@ -1025,6 +1099,7 @@ public final class MainActivity extends Activity {
             applyOverlayVisibility();
         }
         if (atlas!=null) atlas.setGamePaused(paused);
+        if (thorCompanion!=null) thorCompanion.onPauseChanged();
     }
     /** The touch controller shows while the menu is closed and the game is not paused, when it is on, or when the layout
      *  editor is open on it (the Controller menu's, or the mini map's from the Hunter's Atlas menu). */
@@ -1635,13 +1710,31 @@ public final class MainActivity extends Activity {
         hud.setVisibility(View.VISIBLE);
     }
     /** One-tap graphics preset from the lower-screen Status tab: writes the perf-relevant bbport.ini keys and restarts. */
+    private static final String[] PRESET_KEYS={"output_res","upscaler","fps_limit","frame_generation","speed_floor"};
+    private static final String[] PRESET_DEFAULTS={"1920x1080","gsr2","30","0","20"}; // used for a key the file does not set
+    private static final LinkedHashMap<String,String[]> GRAPHICS_PRESETS=new LinkedHashMap<>();
+    static {
+        GRAPHICS_PRESETS.put("performance",new String[]{"1280x720","gsr2","60","0","20"});
+        GRAPHICS_PRESETS.put("balanced",   new String[]{"1920x1080","gsr2","45","0","20"});
+        GRAPHICS_PRESETS.put("quality",    new String[]{"1920x1080","fsr3","30","1","30"});
+    }
     private void applyGraphicsPreset(String key) {
+        String[] v=GRAPHICS_PRESETS.get(key); if (v==null) v=GRAPHICS_PRESETS.get("balanced");
         Map<String,String> m=new LinkedHashMap<>();
-        if ("performance".equals(key)) { m.put("output_res","1280x720"); m.put("upscaler","gsr2"); m.put("fps_limit","60"); m.put("frame_generation","0"); m.put("speed_floor","20"); }
-        else if ("quality".equals(key)) { m.put("output_res","1920x1080"); m.put("upscaler","fsr3"); m.put("fps_limit","30"); m.put("frame_generation","1"); m.put("speed_floor","30"); }
-        else { m.put("output_res","1920x1080"); m.put("upscaler","gsr2"); m.put("fps_limit","45"); m.put("frame_generation","0"); m.put("speed_floor","20"); }
+        for (int i=0;i<PRESET_KEYS.length;++i) m.put(PRESET_KEYS[i],v[i]);
         new SettingsDialog(this,new File(BASE,"bbport.ini"),this::restartGame).setAll(m);
         if (displayReady) restartGame();
+    }
+    /** The graphics preset whose five keys all match bbport.ini right now, or null (custom). */
+    private String activeGraphicsPreset() {
+        String[] cur=new String[PRESET_KEYS.length];
+        for (int i=0;i<PRESET_KEYS.length;++i) { String s=setting(PRESET_KEYS[i]); cur[i]=(s==null||s.isEmpty())?PRESET_DEFAULTS[i]:s; }
+        for (Map.Entry<String,String[]> e:GRAPHICS_PRESETS.entrySet()) {
+            boolean all=true;
+            for (int i=0;i<PRESET_KEYS.length;++i) if (!cur[i].equals(e.getValue()[i])) { all=false; break; }
+            if (all) return e.getKey();
+        }
+        return null;
     }
     /** Tells the OS (GameManager, Android 13+) whether the game is loading or being played: game boosters and
      *  the scheduler treat uninterruptible gameplay as such. The game counts as loading from its start until its

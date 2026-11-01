@@ -23,7 +23,7 @@ The Bloodborne Android port, compiler, runtime and Hunter's Atlas are the work o
 | **Device** | An **AYN Thor** (dual-screen Android handheld). The build targets its two screens; it runs on other Android devices but the second-screen companion only appears on a display named `Screen-2`. |
 | **Game files** | Your own **Bloodborne 1.09** files — a folder containing `eboot.bin`, `sce_module/` and `sce_sys/` — extracted from a disc **you own**. None are included here. |
 | **Storage** | Free space for your extracted game files plus the on-device compiled code (several GB). |
-| **The app** | The APK from the [latest preview release](https://github.com/emerytech/Bloodborne-Android/releases/latest). |
+| **The app** | The APK from the [latest preview release](https://github.com/emerytech/Bloodborne-Android/releases). |
 
 ---
 
@@ -31,7 +31,7 @@ The Bloodborne Android port, compiler, runtime and Hunter's Atlas are the work o
 
 ### 1. Install the app
 
-1. Download **[Bloodborne-Thor-Companion-0.10.0-preview.apk](https://github.com/emerytech/Bloodborne-Android/releases/download/thor-v0.10.0-preview.1/Bloodborne-Thor-Companion-0.10.0-preview.apk)** from the [latest release](https://github.com/emerytech/Bloodborne-Android/releases/latest) onto your Thor.
+1. Download **[Bloodborne-Thor-Companion-0.10.0-preview.apk](https://github.com/emerytech/Bloodborne-Android/releases/download/thor-v0.10.0-preview.1/Bloodborne-Thor-Companion-0.10.0-preview.apk)** from the [latest release](https://github.com/emerytech/Bloodborne-Android/releases) onto your Thor.
 2. Open it and install. Android will ask you to allow installing from your browser or file manager the first time — allow it, then install.
 3. **Do not install an upstream APK over this fork.** This build uses its own package (`com.emerytech.bloodbornethor`), so it sits beside any existing Bloodborne app without touching it.
 
@@ -67,7 +67,7 @@ The game runs on the **upper** screen with your physical controls. The **lower**
 
 ## Using the two screens
 
-The lower screen is a touchscreen. **Artwork is the home view** — tap a tab to open it, tap the same tab again to close back to the artwork. The top swipe-in drawer on the upper screen stays available too, so the game menu is reachable from either screen.
+The lower screen is a touchscreen. **Artwork is the home view** — tap a tab to open it, tap the same tab again to close back to the artwork. A **⏸ Pause** button sits in the panel header, reachable from any tab. The top swipe-in drawer on the upper screen stays available too, so the game menu is reachable from either screen (opening it also shows the menu here).
 
 | Tab | What it does |
 |---|---|
@@ -76,7 +76,7 @@ The lower screen is a touchscreen. **Artwork is the home view** — tap a tab to
 | **Artwork** | The home view: the game's own key art, read from your `sce_sys` folder. |
 | **Status** | A live readout, refreshed every second: FPS with a rolling average and 1% low, a frame-time graph (with 60 and 30 FPS guide lines), CPU, RAM, battery, and SoC temperature — which turns amber, then red, and warns when the chip runs hot — plus a clock and a brightness slider for the lower screen. |
 | **Tune** | The on-game HUD toggle and one-tap graphics presets. The HUD is a small FPS/temperature overlay on the **upper** (game) screen — off, FPS only, or full (adds average, 1% low and temperature). The presets — **Performance**, **Balanced**, **Quality** — apply resolution, upscaler, FPS cap and frame-generation in one tap and restart the game. |
-| **Help** | Full disclosure, a short how-it-works note, and a one-tap link to Couchside. |
+| **Help** | Pauses the game and shows the full how-it-works note, the gesture list and the disclosure on the lower screen; tap Help again (or any tab) to resume. |
 
 | Live status readout + frame-time graph | Tune tab: on-game HUD + graphics presets |
 |---|---|
@@ -87,6 +87,14 @@ The lower screen is a touchscreen. **Artwork is the home view** — tap a tab to
 | ![Game menu mirrored to the bottom touchscreen](https://github.com/emerytech/Bloodborne-Android/releases/download/thor-v0.10.0-preview.1/thor-0.10-menu.png) | ![A small FPS, average, 1% low and temperature overlay in the upper-right of the game screen](https://github.com/emerytech/Bloodborne-Android/releases/download/thor-v0.10.0-preview.1/thor-0.10-game-hud.png) |
 
 Upstream's **Hunter's Atlas** second-screen map is preserved. The game menu's **Thor companion** entry offers hide/show and the Atlas map; turning the map on hands the lower screen to Atlas until you turn it off again.
+
+### Gestures
+
+Thumb-friendly swipes on the lower screen (also listed in the Help tab):
+
+- **Double-tap** the upper screen, or the Status tab, to **pause / resume** — a setting in the game menu, on by default.
+- **Swipe left** to put the **Hunter's Atlas** map on the lower screen while you keep playing up top (close it with the map's **Companion** button).
+- **Swipe up** to **pause and open the full map on the upper screen** for a close look; **swipe up again** to close it and resume.
 
 ---
 
@@ -141,7 +149,7 @@ A signed release requires `SIGNING_KEYSTORE`, `SIGNING_STORE_PASSWORD`, `SIGNING
 
 ## Support and Couchside
 
-This fork is free. If the upstream port helps you, support its author **ducvd89** via the primary **Buy me a Claude token** badge by the title (PayPal). A smaller secondary badge offers an optional **[Ko-fi](https://ko-fi.com/ets3d)** tip for this Thor integration. **[Couchside](https://couchside.tv)** — the ultimate living-room gaming PC remote — opens in one tap from the game **Menu** (and from the lower-screen **Help** tab). No purchase is required and nothing is gated. Links open in your browser.
+This fork is free. If this Thor build helps you, the **Buy me a Claude token** badge by the title is an optional tip to the developer and opens **[Ko-fi](https://ko-fi.com/ets3d)**. The underlying Bloodborne Android port is **ducvd89's** work — see the [upstream project](https://github.com/ducvd89/Bloodborne-Android). **[Couchside](https://couchside.tv)** — the ultimate living-room gaming PC remote — opens in one tap from the game **Menu** (and from the lower-screen **Help** tab). No purchase is required and nothing is gated. Links open in your browser.
 
 ---
 
