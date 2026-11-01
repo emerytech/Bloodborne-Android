@@ -100,6 +100,12 @@ See the [step-by-step install guide](docs/THOR_INSTALL.md) for more detail.
 
 ---
 
+## Updating
+
+The game menu's **Check for updates** (top drawer, or the lower-screen **Menu** tab) checks GitHub for a newer preview, shows its release notes, downloads the APK with a progress bar, verifies its SHA-256, and installs it **in place** through Android's package installer. Every preview is signed with the same key, so it upgrades over your current build and keeps your game folder, settings and saves. Android asks once to allow this app to install updates.
+
+---
+
 ## Mods
 
 Open **Mods → Browse / download mods** to search the starter catalog. Direct downloads are checksum-checked, preview their shared files, and install switched off. Author-page entries use the website's normal download flow and the browser's Import archive action. All starter mods are marked not gameplay-tested on Thor. [Details, credits and limits](docs/THOR_MOD_BROWSER.md).
@@ -124,6 +130,8 @@ git clone --recurse-submodules https://github.com/emerytech/Bloodborne-Android.g
 cd Bloodborne-Android
 ./tools/thor/build.sh assembleDebug
 ```
+
+To iterate on a device, `tools/thor/dev-watch.sh` rebuilds the signed release and installs it on a connected Thor (`adb install -r`) on every frontend source change — in place, keeping your saves. It uses `fswatch` when available, otherwise polls; pass `--once` for a single build or `--no-launch` to skip the relaunch.
 
 The build recompiles all frontend Java from this repository. It reuses only checksum-pinned native runtime assets/libraries from official upstream 2.2.0, and verifies all 38 upstream JVM dependency JARs against a tracked SHA-256 lock. It does not extract upstream Java classes or resources. See [build inputs and licensing](docs/THOR_INTEGRATION.md).
 
