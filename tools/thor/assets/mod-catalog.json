@@ -36,6 +36,14 @@
       "category": "Performance",
       "summary": "Offers cloth-physics variants. Made as an emulator workaround; improvement on the native Android port is unverified. Check the author\u2019s warnings and choose a variant deliberately.",
       "page": "https://www.nexusmods.com/bloodborne/mods/114"
+    },
+    {
+      "id": "bbreborne-visual-overhaul",
+      "title": "BBReborne \u00b7 visual overhaul",
+      "author": "See Nexus page",
+      "category": "Graphics",
+      "summary": "Large texture, lighting and material overhaul built for the shadPS4 PC build of Bloodborne. It targets that desktop pipeline and ships multi-gigabyte packs, so it is not made for the native Android port and compatibility on Thor is unverified and likely limited \u2014 listed for awareness. Whole-build or executable downloads cannot be imported here.",
+      "page": "https://www.nexusmods.com/bloodborne/mods/503"
     }
   ]
 }

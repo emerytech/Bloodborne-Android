@@ -190,6 +190,7 @@ final class ThorCompanionScreen implements DisplayManager.DisplayListener {
             button(tabs, "Help", () -> help(owner));
             ScrollView scroll = new ScrollView(getContext()); body = text("", 16); body.setPadding(0, dp(6), 0, dp(6)); scroll.addView(body);
             content.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1));
+            content.addView(couchsideStrip());
             content.addView(text("Same game app · physical controls stay on the upper screen", 10));
             setContentView(root); window.setLayout(-1, -1); showMode();
         }
@@ -197,7 +198,29 @@ final class ThorCompanionScreen implements DisplayManager.DisplayListener {
             boolean art = prefs.getBoolean("thor_companion_art", false);
             shade.setBackgroundColor(art ? 0x40080b10 : 0xcf080b10);
             body.setGravity(art ? Gravity.CENTER : Gravity.START);
-            body.setText(art ? "Your journey awaits." : "COMBAT\nR1 · Attack       R2 · Heavy / hold to charge\nL1 · Transform   L2 · Left-hand weapon\n\nFACE BUTTONS — BY POSITION\nTop △ · Blood vial / heal\nRight ○ · Dodge / hold to run\nBottom × · Interact / confirm\nLeft □ · Use selected item\n\nMOVEMENT\nLeft stick · Move      Right stick · Camera\nR3 · Lock on / center camera\nD-pad down · Cycle quick items\nD-pad left / right · Switch weapons");
+            body.setText(art ? "Your journey awaits.\n\nRest at a lamp. The Dream keeps your echoes." : "COMBAT\nR1 · Attack       R2 · Heavy / hold to charge\nL1 · Transform    L2 · Left-hand (firearm / shield)\nParry · Fire L2 as the enemy strikes, then R1 up close for a visceral attack\nRally · Attack right after taking damage to win health back\n\nFACE BUTTONS — BY POSITION\nTop △ · Blood vial / heal\nRight ○ · Dodge / quickstep / hold to run\nBottom × · Interact / confirm\nLeft □ · Use selected quick item\n\nMOVEMENT & CAMERA\nLeft stick · Move      Right stick · Camera\nR3 · Lock on / center camera\nD-pad up · Cycle hunter tools\nD-pad down · Cycle quick items\nD-pad left / right · Switch left / right weapon\n\nMENUS\nOptions · Pause / inventory      Touchpad · Gestures\nHold Options at a lamp · Return to the Hunter's Dream\n\nQUICK TIPS\nDied? Your Blood Echoes wait where you fell, or on the enemy that took them.\nInsight is spent at the Bath Messengers and quietly reshapes the night.\nLook for shortcuts; most loop back to a lamp you already lit.");
+        }
+        /** Display-only Couchside promo on the second screen: scan the QR to open couchside.tv. The panel is
+         *  non-focusable so physical controls stay on the game; this code is here to be scanned, not tapped. */
+        View couchsideStrip() {
+            LinearLayout row = new LinearLayout(getContext()); row.setOrientation(LinearLayout.HORIZONTAL);
+            row.setGravity(Gravity.CENTER_VERTICAL); row.setPadding(dp(8), dp(6), dp(8), dp(6));
+            android.graphics.drawable.GradientDrawable bg = new android.graphics.drawable.GradientDrawable();
+            bg.setColor(0xcf0b1118); bg.setCornerRadius(dp(10)); bg.setStroke(dp(1), 0x55c6ad76); row.setBackground(bg);
+            ImageView qr = new ImageView(getContext());
+            qr.setImageResource(getContext().getResources().getIdentifier("couchside_qr", "drawable", getContext().getPackageName()));
+            qr.setBackgroundColor(0xffffffff); qr.setPadding(dp(3), dp(3), dp(3), dp(3));
+            LinearLayout.LayoutParams qp = new LinearLayout.LayoutParams(dp(58), dp(58)); qp.rightMargin = dp(10);
+            row.addView(qr, qp);
+            LinearLayout col = new LinearLayout(getContext()); col.setOrientation(LinearLayout.VERTICAL);
+            TextView head = text("COUCHSIDE", 15); head.setTextColor(0xffb59b71); head.setTypeface(Typeface.SERIF, Typeface.BOLD);
+            col.addView(head);
+            col.addView(text("The ultimate living-room gaming PC remote", 11));
+            col.addView(text("Scan to open couchside.tv", 10));
+            row.addView(col, new LinearLayout.LayoutParams(0, -2, 1));
+            LinearLayout.LayoutParams rp = new LinearLayout.LayoutParams(-1, -2); rp.topMargin = dp(6); rp.bottomMargin = dp(4);
+            row.setLayoutParams(rp);
+            return row;
         }
     }
 }

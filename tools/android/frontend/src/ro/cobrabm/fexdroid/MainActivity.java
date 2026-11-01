@@ -328,6 +328,11 @@ public final class MainActivity extends Activity {
         LinearLayout.LayoutParams bp=new LinearLayout.LayoutParams(-2,-2); bp.leftMargin=dp(6);
         titleRow.addView(donateBadge(),bp);
         drawerItems.addView(titleRow,new LinearLayout.LayoutParams(-1,-2));
+        // Secondary, muted tip pill for this Thor integration (Ko-fi), under ducvd89's primary badge.
+        LinearLayout kofiRow=new LinearLayout(this); kofiRow.setGravity(Gravity.CENTER_VERTICAL|Gravity.END);
+        kofiRow.setPadding(0,dp(3),dp(2),0);
+        kofiRow.addView(kofiBadge(),new LinearLayout.LayoutParams(-2,-2));
+        drawerItems.addView(kofiRow,new LinearLayout.LayoutParams(-1,-2));
         TextView hint=text("Swipe left or press ○ to return",12,0xff8e9097);
         hint.setPadding(dp(10),dp(2),0,dp(6));
         drawerItems.addView(hint,new LinearLayout.LayoutParams(-1,-2));
@@ -461,6 +466,39 @@ public final class MainActivity extends Activity {
         TextView label=text("",11,0xff1a1a1a); label.setText(words);
         label.setTypeface(Typeface.create("cursive",Typeface.BOLD));
         label.setIncludeFontPadding(false); label.setLineSpacing(0,0.8f);
+        pill.addView(label);
+        return pill;
+    }
+
+    /** Secondary tip pill for this Thor integration (Ko-fi), beside ducvd89's primary PayPal badge.
+     *  Deliberately smaller and muted so the upstream donation stays dominant. Focusable for the gamepad,
+     *  with a gold edge when focused; opens Ko-fi in the browser. */
+    private View kofiBadge() {
+        LinearLayout pill=new LinearLayout(this); pill.setGravity(Gravity.CENTER_VERTICAL);
+        pill.setPadding(dp(6),dp(2),dp(7),dp(2));
+        pill.setContentDescription("Tip the Thor build on Ko-fi");
+        pill.setFocusable(true); pill.setClickable(true);
+        pill.setOnClickListener(v -> {
+            try { startActivity(new Intent(Intent.ACTION_VIEW,Uri.parse("https://ko-fi.com/ets3d"))); }
+            catch (Exception ex) { android.util.Log.w("Bloodborne","kofi link: "+ex); }
+        });
+        android.graphics.drawable.StateListDrawable states=new android.graphics.drawable.StateListDrawable();
+        GradientDrawable lit=new GradientDrawable(); lit.setColor(0xff2a2d34); lit.setCornerRadius(dp(7));
+        lit.setStroke(dp(1),0xffc6ad76);
+        GradientDrawable pressed=new GradientDrawable(); pressed.setColor(0xff3a3f49); pressed.setCornerRadius(dp(7));
+        GradientDrawable idle=new GradientDrawable(); idle.setColor(0xcc23262d); idle.setCornerRadius(dp(7));
+        idle.setStroke(dp(1),0x66c6ad76);
+        states.addState(new int[]{android.R.attr.state_pressed},pressed);
+        states.addState(new int[]{android.R.attr.state_focused},lit);
+        states.addState(new int[]{},idle);
+        pill.setBackground(states);
+        android.widget.ImageView coin=new android.widget.ImageView(this);
+        coin.setImageResource(getResources().getIdentifier("ic_claude_token","drawable",getPackageName()));
+        coin.setColorFilter(0xffc6ad76); // flatten the coin to gold so it reads on the dark pill
+        LinearLayout.LayoutParams cp=new LinearLayout.LayoutParams(dp(12),dp(12)); cp.rightMargin=dp(4);
+        pill.addView(coin,cp);
+        TextView label=text("Tip this Thor build · Ko-fi",9,0xffcdbb90);
+        label.setIncludeFontPadding(false);
         pill.addView(label);
         return pill;
     }
