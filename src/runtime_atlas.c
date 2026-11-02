@@ -18,7 +18,8 @@
  *   64.. i8 flags[min(flag_count, 7872)]: -1 unreadable, 0 off, 1 on, in request order
  * 7936 u32 stats_valid (bit0 HP, bit1 echoes, bit2 stamina, bit3 insight, bit4 vials, bit5 bullets)
  * 7940 s32 cur_hp  7944 s32 max_hp  7948 s32 echoes  7952 s32 cur_stamina  7956 s32 max_stamina
- * 7960 s32 insight  7964 s32 blood_vials  7968 s32 quicksilver_bullets  7972..8191 reserved
+ * 7960 s32 insight  7964 s32 blood_vials  7968 s32 quicksilver_bullets
+ * 7972 u32 goods_count  7976.. {u32 goods_id, u32 count} per carried usable good (<=24)
  * (version 2; a version-1 reader ignores this block). */
 #define _GNU_SOURCE
 #include "runtime.h"
@@ -172,6 +173,44 @@ static int32_t inv_count(uintptr_t inv, uint32_t code) {
         idx = (int32_t)next;
     }
     return 0;
+}
+
+/* The carried usable goods, enumerated for the companion's inventory slots (every hash bucket and its
+ * collision chain). Cached and refreshed about once a second (the walk is many reads); each publish
+ * copies the cache into the shm. Blood Vials (1000) and Quicksilver Bullets (900) are left out — they
+ * have their own HUD counters. */
+enum { GoodsMax = 24 };
+static uint32_t goods_id[GoodsMax], goods_count[GoodsMax], goods_n;
+static void refresh_goods(void) {
+    goods_n = 0;
+    const uintptr_t slots = ptr(base + 0x553b130), local = slots ? ptr(slots + 8) : 0;
+    if (!local) return;
+    const uintptr_t inv = local + 0x328;
+    const uintptr_t hashes = ptr(inv + 0x68), entries = ptr(inv + 0x78);
+    if (!hashes || !entries) return;
+    static unsigned char buckets[0x7e1 * 2];
+    if (!read_mem(hashes, buckets, sizeof(buckets))) return;
+    for (int b = 0; b < 0x7e1 && goods_n < GoodsMax; ++b) {
+        int32_t idx = (int16_t)(buckets[b * 2] | (buckets[b * 2 + 1] << 8));
+        for (int guard = 0; idx >= 0 && guard < 64 && goods_n < GoodsMax; ++guard) {
+            unsigned char e[8];
+            if (!read_mem(entries + (uint64_t)idx * 8, e, sizeof(e))) break;
+            const uint32_t code = le32(e), info = le32(e + 4);
+            if ((code & 0xf0000000u) == 0x40000000u) {
+                const uint32_t id = code & 0x0fffffffu;
+                if (id != 1000 && id != 900) {
+                    const uintptr_t at = inv_entry(inv, info & 0xfff);
+                    uint32_t cnt = 0, key = 0;
+                    if (at && read_mem(at, &key, 4) && key != 0 && read_mem(at + 8, &cnt, 4) && cnt > 0) {
+                        goods_id[goods_n] = id; goods_count[goods_n] = cnt; ++goods_n;
+                    }
+                }
+            }
+            const uint32_t next = (((info >> 12) & 0xfff) + 0xffff) & 0xffff;
+            if (next & 0x8000) break;
+            idx = (int32_t)next;
+        }
+    }
 }
 
 static void read_stats(Stats *out) {
@@ -364,6 +403,11 @@ static void publish(const Position *p, int menu_open, const Stats *s) {
     put32(StatsAt + 24, (uint32_t)s->insight);
     put32(StatsAt + 28, (uint32_t)s->vials);
     put32(StatsAt + 32, (uint32_t)s->bullets);
+    put32(StatsAt + 36, goods_n);
+    for (uint32_t i = 0; i < goods_n && i < GoodsMax; ++i) {
+        put32(StatsAt + 40 + i * 8, goods_id[i]);
+        put32(StatsAt + 44 + i * 8, goods_count[i]);
+    }
     __atomic_store_n((uint32_t *)(map + 8), file_seq + 2, __ATOMIC_RELEASE);
     file_seq += 2;
 }
@@ -420,6 +464,7 @@ static void *atlas_thread(void *argument) {
         Stats stats;
         read_position(&p);
         read_stats(&stats);
+        if (tick % ReloadEvery == 0) refresh_goods();
         int refresh = tick % FlagEvery == 0;
         if (tick % ReloadEvery == 0 && tick && reload_request(args.flags_file, &seen, 0)) refresh = 1;
         if (refresh) read_flags();

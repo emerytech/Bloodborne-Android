@@ -29,6 +29,10 @@ final class AtlasState implements AtlasFeatures.Flags {
     // live player figures (version 2+); *Valid flags say whether each value is present
     boolean hpValid, echoesValid, spValid, insightValid, vialsValid, bulletsValid;
     int curHp=-1, maxHp=-1, echoes=-1, curSp=-1, maxSp=-1, insight=-1, vials=-1, bullets=-1;
+    // carried usable goods (id + count) for the inventory slots
+    static final int GOODS_MAX=24;
+    int goodsN;
+    final int[] goodsIds=new int[GOODS_MAX], goodsCounts=new int[GOODS_MAX];
     private final byte[] flags=new byte[MAX_FLAGS];
     /** Bumped when the place or the flags changed since the previous poll() that returned true. */
     int flagsVersion;
@@ -66,11 +70,14 @@ final class AtlasState implements AtlasFeatures.Flags {
     void reset() {
         close(); mapped=false; valid=false; menuOpen=false; tick=0; flagsGen=0; flagCount=0; ++flagsVersion;
         hpValid=false; echoesValid=false; spValid=false; insightValid=false; vialsValid=false; bulletsValid=false;
-        curHp=-1; maxHp=-1; echoes=-1; curSp=-1; maxSp=-1; insight=-1; vials=-1; bullets=-1;
+        curHp=-1; maxHp=-1; echoes=-1; curSp=-1; maxSp=-1; insight=-1; vials=-1; bullets=-1; goodsN=0;
         java.util.Arrays.fill(flags,(byte)-1);
     }
     /** A copy of the player's live figures that stays as it is (for the companion HUD). */
-    AtlasStats statsSnapshot() { return new AtlasStats(hpValid,curHp,maxHp,echoesValid,echoes,spValid,curSp,maxSp,insightValid,insight,vialsValid,vials,bulletsValid,bullets); }
+    AtlasStats statsSnapshot() {
+        return new AtlasStats(hpValid,curHp,maxHp,echoesValid,echoes,spValid,curSp,maxSp,insightValid,insight,
+            vialsValid,vials,bulletsValid,bullets,goodsN,goodsIds.clone(),goodsCounts.clone());
+    }
     void close() {
         map=null; key=null;
         if (channel!=null) { try { channel.close(); } catch (IOException ignored) {} channel=null; }
@@ -140,12 +147,16 @@ final class AtlasState implements AtlasFeatures.Flags {
             int ch=version>=2 ? b.getInt(STATS_AT+4) : -1, mh=version>=2 ? b.getInt(STATS_AT+8) : -1, ec=version>=2 ? b.getInt(STATS_AT+12) : -1;
             int cs=version>=2 ? b.getInt(STATS_AT+16) : -1, ms=version>=2 ? b.getInt(STATS_AT+20) : -1, in=version>=2 ? b.getInt(STATS_AT+24) : -1;
             int vi=version>=2 ? b.getInt(STATS_AT+28) : -1, bu=version>=2 ? b.getInt(STATS_AT+32) : -1;
+            int gn=version>=2 ? Math.max(0,Math.min(GOODS_MAX,b.getInt(STATS_AT+36))) : 0;
+            int[] gi=new int[GOODS_MAX], gc=new int[GOODS_MAX];
+            for (int i=0;i<gn;i++){ gi[i]=b.getInt(STATS_AT+40+i*8); gc[i]=b.getInt(STATS_AT+44+i*8); }
             if (b.getInt(8)!=seq) continue;
             mapped=true; valid=v!=0; x=fx; y=fy; z=fz; yaw=fyaw; block=blk; menuOpen=menu!=0; tick=tk; flagsGen=fg; flagCount=n;
             hpValid=(sv&1)!=0; echoesValid=(sv&2)!=0; spValid=(sv&4)!=0; insightValid=(sv&8)!=0; vialsValid=(sv&16)!=0; bulletsValid=(sv&32)!=0;
             curHp=hpValid?ch:-1; maxHp=hpValid?mh:-1; echoes=echoesValid?ec:-1;
             curSp=spValid?cs:-1; maxSp=spValid?ms:-1; insight=insightValid?in:-1;
             vials=vialsValid?vi:-1; bullets=bulletsValid?bu:-1;
+            goodsN=gn; System.arraycopy(gi,0,goodsIds,0,GOODS_MAX); System.arraycopy(gc,0,goodsCounts,0,GOODS_MAX);
             for (int i=0;i<MAX_FLAGS;++i) { byte w=i<n ? tmp[i] : (byte)-1; if (flags[i]!=w) { flags[i]=w; flagBytesChanged=true; } }
             return true;
         }
