@@ -337,6 +337,7 @@ final class ThorCompanionScreen implements DisplayManager.DisplayListener {
         View journalBox; TextView journalView;
         View hudBox;
         View hpFill, hpEmpty, staFill, staEmpty; TextView hpLabel, echoesVal, insightVal, vialsVal, bulletsVal; // live Kit-HUD refs
+        final TextView[] invCount = new TextView[10], invName = new TextView[10]; // inventory-slot refs (count + item name)
         LinearLayout cTitle, cTabs1, cTabs2, cTabs3; TextView cSubtitle, cFooter;
         boolean statusVisible, pausedForHelp; long lastCpuBusy = -1, lastCpuTotal = -1;
         String activeTab = "art";
@@ -674,7 +675,7 @@ final class ThorCompanionScreen implements DisplayManager.DisplayListener {
             in.addView(section("INVENTORY"));
             for (int r = 0; r < 2; r++) {
                 LinearLayout row = rowBox(dp(2));
-                for (int c = 0; c < 5; c++) row.addView(hudSlot("", null), weight());
+                for (int c = 0; c < 5; c++) row.addView(invSlot(r * 5 + c), weight());
                 in.addView(row);
             }
             ScrollView sv = new ScrollView(getContext()); sv.addView(in);
@@ -706,6 +707,18 @@ final class ThorCompanionScreen implements DisplayManager.DisplayListener {
             if (label != null) { TextView l = text(label, 8); l.setTextColor(0xff8c7a5a); l.setGravity(Gravity.CENTER); l.setPadding(0, dp(1), 0, 0); col.addView(l, new LinearLayout.LayoutParams(-1, -2)); }
             return col;
         }
+        /** An inventory cell whose count (in the frame) and item name (below) are updated live in pollHud. */
+        View invSlot(int i) {
+            LinearLayout col = new LinearLayout(getContext()); col.setOrientation(LinearLayout.VERTICAL); col.setGravity(Gravity.CENTER_HORIZONTAL);
+            FrameLayout frame = new FrameLayout(getContext());
+            android.graphics.drawable.GradientDrawable fb = new android.graphics.drawable.GradientDrawable(); fb.setColor(0xff13100d); fb.setCornerRadius(dp(6)); fb.setStroke(dp(1), 0xff3a3024); frame.setBackground(fb);
+            TextView g = text("", 15); g.setTextColor(0xffe8dfc9); g.setTypeface(Typeface.SERIF, Typeface.BOLD); g.setGravity(Gravity.CENTER); frame.addView(g, new FrameLayout.LayoutParams(-1, -1));
+            col.addView(frame, new LinearLayout.LayoutParams(-1, dp(32)));
+            TextView l = text("", 8); l.setTextColor(0xff8c7a5a); l.setGravity(Gravity.CENTER); l.setMaxLines(1); l.setEllipsize(android.text.TextUtils.TruncateAt.END);
+            col.addView(l, new LinearLayout.LayoutParams(-1, -2));
+            invCount[i] = g; invName[i] = l;
+            return col;
+        }
         View hudCounter(String icon, String label, String value, int iconColor, int capture) {
             LinearLayout box = new LinearLayout(getContext()); box.setOrientation(LinearLayout.HORIZONTAL); box.setGravity(Gravity.CENTER_VERTICAL);
             android.graphics.drawable.GradientDrawable bb = new android.graphics.drawable.GradientDrawable(); bb.setColor(0xff13100d); bb.setCornerRadius(dp(8)); bb.setStroke(dp(1), 0xff3a3024); box.setBackground(bb); box.setPadding(dp(10), dp(4), dp(10), dp(4));
@@ -735,6 +748,13 @@ final class ThorCompanionScreen implements DisplayManager.DisplayListener {
             if (insightVal != null) insightVal.setText(s != null && s.insightValid ? String.valueOf(s.insight) : "—");
             if (vialsVal != null) vialsVal.setText(s != null && s.vialsValid ? String.valueOf(s.vials) : "—");
             if (bulletsVal != null) bulletsVal.setText(s != null && s.bulletsValid ? String.valueOf(s.bullets) : "—");
+            int gn = s != null ? s.goodsN : 0;
+            for (int i = 0; i < 10 && invCount[i] != null; i++) {
+                if (s != null && i < gn) {
+                    invCount[i].setText(String.valueOf(s.goodsCounts[i]));
+                    invName[i].setText(BbItems.name(s.goodsIds[i]));
+                } else { invCount[i].setText(""); invName[i].setText(""); }
+            }
         }
         void setBarFrac(View fill, View empty, float frac) {
             frac = Math.max(0.01f, Math.min(1f, frac));
