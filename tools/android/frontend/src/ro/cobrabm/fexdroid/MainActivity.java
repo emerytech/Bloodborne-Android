@@ -60,7 +60,7 @@ public final class MainActivity extends Activity {
     private TextView status;
     private TextView hud; // on-game performance overlay (upper screen); visibility driven by the "thor_hud" pref
     private View resume;
-    private LinearLayout pauseItem, tapPauseItem, updateAutoItem, lidPauseItem;
+    private LinearLayout pauseItem, tapPauseItem, updateAutoItem, lidPauseItem, tapUseItem;
     private android.content.BroadcastReceiver screenOff; // lid close / screen off -> pause (setting thor_lid_pause)
     private TextView pausedChip;
     private LinearLayout vibrationItem, gameSettingsItem, cheatsItem, modsItem, graphicsItem, frameGenItem, driverItem, controllerItem, remapItem, folderItem, autoBackupItem;
@@ -374,6 +374,11 @@ public final class MainActivity extends Activity {
             getSharedPreferences("bloodborne",MODE_PRIVATE).edit().putBoolean("thor_lid_pause",on).apply();
             setDetail(lidPauseItem,lidPauseLabel());
         });
+        tapUseItem=menuItem("ic_gamepad","Tap to use items (Kit)",tapUseLabel(),() -> {
+            boolean on=!getSharedPreferences("bloodborne",MODE_PRIVATE).getBoolean("thor_tap_to_use",true);
+            getSharedPreferences("bloodborne",MODE_PRIVATE).edit().putBoolean("thor_tap_to_use",on).apply();
+            setDetail(tapUseItem,tapUseLabel());
+        });
         gameSettingsItem=menuItem("ic_settings","Game settings","",() -> {
             closeDrawer();
             new SettingsDialog(this,new File(BASE,"bbport.ini"),this::restartGame).showGame(online.playingOnline());
@@ -477,6 +482,8 @@ public final class MainActivity extends Activity {
             thorCompanion.setPauseSetter(this::setPaused);
             thorCompanion.setFlagSource(() -> atlas != null ? atlas.pollFlags() : null);
             thorCompanion.setStatsSource(() -> atlas != null ? atlas.pollStats() : null);
+            thorCompanion.setUseRequest(g -> { if (atlas != null) atlas.requestUse(g); });
+            thorCompanion.setPadPulse(b -> { if (pad != null) pad.pulse(b, 90); });
             thorCompanion.setTrophySource(new TrophyProgress(savesDir()));
         }
     }
@@ -1054,6 +1061,11 @@ public final class MainActivity extends Activity {
     private String tapPauseLabel() {
         return getSharedPreferences("bloodborne",MODE_PRIVATE).getBoolean("thor_tap_pause",true)
             ? "On · double-tap the game screen or Status tab" : "Off";
+    }
+    private String tapUseLabel() {
+        return getSharedPreferences("bloodborne",MODE_PRIVATE).getBoolean("thor_tap_to_use",true)
+            ? "On · Blood Vial and Quicksilver play their animations; other items apply instantly, with no "
+              + "animation in this build. Lower-screen double-tap pause is off while this is on." : "Off";
     }
     private String autoUpdateLabel() {
         return getSharedPreferences("bloodborne",MODE_PRIVATE).getBoolean("thor_auto_update",true)

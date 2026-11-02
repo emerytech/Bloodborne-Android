@@ -28,6 +28,7 @@
 #include "bbport_guest_code.h"
 #include "bbport_hook_sites.h"
 #include "bbport_patch_notes.h"
+#include "bbport_use_item.h"
 #include "bbport_toggles.h"
 #include "../../src/guest_cpu.h"
 
@@ -423,6 +424,7 @@ std::uint32_t PacerModeSlot(void*, GuestRegsEx* r) {
 /// The main loop's step (0x2018e36, instead of `mov dword [rbp - 0x38], 1/30`; rbx the pacer).
 std::uint32_t StepSlot(void*, GuestRegsEx* r) {
     if (slot_test & 2) return GUEST_HOOK_CONTINUE;
+    BbUseItem::Poll(); // apply a companion tap-to-use request on the game thread, once per frame
     FrameStep(r->gpr[GUEST_RBX]);
     std::memcpy(reinterpret_cast<u8*>(r->gpr[GUEST_RBP]) - 0x38, &live->dt, 4);
     r->rip += 7;
@@ -616,6 +618,7 @@ void PatchImage(unsigned char* image, std::uint64_t image_size) {
         return Disabled("BB_FPS=30: the game's own frame rate");
     }
     image_base = reinterpret_cast<u64>(image);
+    BbUseItem::SetImage(image_base); // tap-to-use resolves the player from this image base, pumped by StepSlot
     // Recompiled game code with native hook slots at every detour site: callbacks instead of stubs (InstallAllSlots).
     slot_mode = image_size >= LiveImageOffset + sizeof(Live) && BbHookSites::Available(image_base + 0x203493d) &&
                 BbHookSites::Available(image_base + 0x2018e36) && BbHookSites::Available(image_base + 0x17f9b71) &&

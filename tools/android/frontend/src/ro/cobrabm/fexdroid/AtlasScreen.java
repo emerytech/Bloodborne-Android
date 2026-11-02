@@ -642,6 +642,18 @@ final class AtlasScreen implements DisplayManager.DisplayListener {
         AtlasState.writeFlags(flags,gen,r.ids);
         return r;
     }
+    private int useSeq;
+    /** Tap-to-use (any thread): ask the running game to use a carried item (goods id). Writes atlas.use
+     *  atomically ("<seq> <goods>"); the game applies it on its own thread (bbport_use_item). */
+    synchronized void requestUse(int goodsId) {
+        if (goodsId<=0) return;
+        try {
+            File use=new File(base,"atlas.use"), tmp=new File(base,"atlas.use."+Thread.currentThread().getId()+".tmp");
+            int seq=++useSeq;
+            try (java.io.FileWriter w=new java.io.FileWriter(tmp)) { w.write(seq+" "+goodsId+"\n"); }
+            if (!tmp.renameTo(use)) tmp.delete();
+        } catch (Exception e) { android.util.Log.w("Bloodborne","atlas use: "+e); }
+    }
     /** Main thread: what the state reader expects from the game now. live: the game is running already (keep the mapping). */
     private void applyRequest(FlagRequest r,boolean live) {
         requestedFlags=r.requested; doorLog.reset();
@@ -664,6 +676,8 @@ final class AtlasScreen implements DisplayManager.DisplayListener {
             final FlagRequest r=writeRequest(m,flags);
             extra.add("BB_ATLAS_FILE="+shm.getPath());
             extra.add("BB_ATLAS_FLAGS_FILE="+flags.getPath());
+            File use=new File(base,"atlas.use"); use.delete(); // no stale tap-to-use request on launch
+            extra.add("BB_ATLAS_USE_FILE="+use.getPath());
             launchedWithAtlas=true;
             main.post(() -> applyRequest(r,false));
         } catch (Exception e) { android.util.Log.w("Bloodborne","atlas launch: "+e); }

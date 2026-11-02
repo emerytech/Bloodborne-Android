@@ -257,6 +257,14 @@ static void read_stats(Stats *out) {
     }
 }
 
+/* Tap-to-use (companion -> game): the companion writes BB_ATLAS_USE_FILE ("<seq> <goods_id>"); the
+ * self-built libbbgpu applies it on the game thread (bb_use_item_post) and reports the result
+ * (bb_use_item_ack), published to the shm at offsets 52 (ack seq) and 56 (ack status). Weak: present
+ * only when that libbbgpu is linked; with the stock upstream one tap-to-use is inert. */
+extern void bb_use_item_post(uint32_t seq, int32_t goods_id) __attribute__((weak));
+extern uint64_t bb_use_item_ack(void) __attribute__((weak));
+static uint32_t use_seq_seen;
+
 /* The app's flag request. */
 static uint32_t request_gen, flag_count;
 static uint32_t flag_ids[MaxFlags];
@@ -318,6 +326,23 @@ static int reload_request(const char *path, FileSig *seen, int first) {
     printf("Atlas: flag request gen %u, %u flags\n", gen, count);
     fflush(stdout);
     return 1;
+}
+
+/* The app's use request (tap-to-use): "<seq> <goods_id>". A new seq is handed to the game-thread
+ * applier in the self-built libbbgpu; a no-op without it. */
+static void read_use_request(const char *path, FileSig *seen, int first) {
+    if (!path || !bb_use_item_post) return;
+    const FileSig now = sig_of(path);
+    if (!first && sig_same(now, *seen)) return;
+    *seen = now;
+    if (!now.exists) return;
+    FILE *f = fopen(path, "r");
+    if (!f) return;
+    unsigned seq = 0;
+    int goods = 0;
+    const int got = fscanf(f, "%u %d", &seq, &goods);
+    fclose(f);
+    if (got == 2 && seq && seq != use_seq_seen) { use_seq_seen = seq; bb_use_item_post(seq, (int32_t)goods); }
 }
 
 /* runtime_atlas_flag, for a whole request: the manager's tree (a std::map of groups of 1000 flags,
@@ -408,6 +433,11 @@ static void publish(const Position *p, int menu_open, const Stats *s) {
         put32(StatsAt + 40 + i * 8, goods_id[i]);
         put32(StatsAt + 44 + i * 8, goods_count[i]);
     }
+    if (bb_use_item_ack) {
+        const uint64_t ack = bb_use_item_ack();
+        put32(52, (uint32_t)(ack >> 32)); /* ack seq */
+        put32(56, (uint32_t)ack);         /* ack status: 0 logged-only, 1 applied, 2 bad-state, 3 no-player */
+    }
     __atomic_store_n((uint32_t *)(map + 8), file_seq + 2, __ATOMIC_RELEASE);
     file_seq += 2;
 }
@@ -434,13 +464,15 @@ static void next_tick(struct timespec *t) {
     if (t->tv_nsec >= 1000000000L) { t->tv_nsec -= 1000000000L; ++t->tv_sec; }
 }
 
-typedef struct { void *image; uint64_t size; const char *file, *flags_file; } AtlasArgs;
+typedef struct { void *image; uint64_t size; const char *file, *flags_file, *use_file; } AtlasArgs;
 static void *atlas_thread(void *argument) {
     AtlasArgs args = *(AtlasArgs *)argument;
     free(argument);
     prctl(PR_SET_NAME, "bb-atlas");
     FileSig seen = {0, 0, 0, 0};
     reload_request(args.flags_file, &seen, 1);
+    FileSig use_seen = {0, 0, 0, 0};
+    read_use_request(args.use_file, &use_seen, 1);
     if (!bind_image(args.image, args.size)) {
         /* The fingerprint does not match: no position, every flag unreadable, and the thread ends. */
         Position none;
@@ -464,6 +496,7 @@ static void *atlas_thread(void *argument) {
         Stats stats;
         read_position(&p);
         read_stats(&stats);
+        read_use_request(args.use_file, &use_seen, 0);
         if (tick % ReloadEvery == 0) refresh_goods();
         int refresh = tick % FlagEvery == 0;
         if (tick % ReloadEvery == 0 && tick && reload_request(args.flags_file, &seen, 0)) refresh = 1;
@@ -480,6 +513,7 @@ static void *atlas_thread(void *argument) {
 
 void runtime_atlas_start(void *image, uint64_t size) {
     const char *file = getenv("BB_ATLAS_FILE"), *flags_file = getenv("BB_ATLAS_FLAGS_FILE");
+    const char *use_file = getenv("BB_ATLAS_USE_FILE");
     if (!file || !*file) return;
     map = open_file(file);
     if (!map) { printf("Atlas: cannot open %s\n", file); fflush(stdout); return; }
@@ -487,7 +521,8 @@ void runtime_atlas_start(void *image, uint64_t size) {
     if (pipe2(probe_pipe, O_NONBLOCK | O_CLOEXEC)) { puts("Atlas: no safe way to read game memory"); fflush(stdout); return; }
     AtlasArgs *args = malloc(sizeof(*args));
     if (!args) return;
-    *args = (AtlasArgs){image, size, file, flags_file && *flags_file ? flags_file : NULL};
+    *args = (AtlasArgs){image, size, file, flags_file && *flags_file ? flags_file : NULL,
+                        use_file && *use_file ? use_file : NULL};
     pthread_t thread;
     if (pthread_create(&thread, NULL, atlas_thread, args) == 0) pthread_detach(thread);
     else free(args);

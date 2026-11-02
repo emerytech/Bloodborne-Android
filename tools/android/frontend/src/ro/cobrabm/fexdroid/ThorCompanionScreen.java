@@ -123,6 +123,12 @@ final class ThorCompanionScreen implements DisplayManager.DisplayListener {
      *  null when the game was not launched with the Atlas, for the Kit HUD. */
     private Supplier<AtlasStats> statsSource;
     void setStatsSource(Supplier<AtlasStats> f) { statsSource = f; }
+
+    private java.util.function.IntConsumer useRequest;
+    void setUseRequest(java.util.function.IntConsumer f) { useRequest = f; }
+
+    private java.util.function.Consumer<String> padPulse;
+    void setPadPulse(java.util.function.Consumer<String> f) { padPulse = f; } // press a game button so items with one animate
     private TrophyProgress trophyProgress;
     void setTrophySource(TrophyProgress p) { trophyProgress = p; }
     /** Set by MainActivity: toggle pause, read paused state, read whether a game is running — for the always-visible
@@ -351,6 +357,7 @@ final class ThorCompanionScreen implements DisplayManager.DisplayListener {
         View hpFill, hpEmpty, staFill, staEmpty; TextView hpLabel, echoesVal, insightVal, vialsVal, bulletsVal; // live Kit-HUD refs
         final TextView[] invCount = new TextView[10], invName = new TextView[10]; // inventory-slot refs (count + item name)
         TextView kitPerf; // compact performance strip under the Kit inventory
+        final int[] invId = new int[10]; // goods id shown in each Kit inventory slot (for tap-to-use)
         LinearLayout cTitle, cTabs1, cTabs2, cTabs3; TextView cSubtitle, cFooter;
         boolean statusVisible, pausedForHelp; long lastCpuBusy = -1, lastCpuTotal = -1;
         String activeTab = "art";
@@ -404,7 +411,10 @@ final class ThorCompanionScreen implements DisplayManager.DisplayListener {
                     // Double-tap anywhere on the lower screen to pause/resume (same thor_tap_pause setting as the
                     // game screen). Observed in dispatchTouchEvent below, so children keep their own taps/slider.
                     @Override public boolean onDoubleTap(android.view.MotionEvent e) {
-                        if (pauseToggle != null && prefs.getBoolean("thor_tap_pause", true)) { pauseToggle.run(); updatePauseButton(); }
+                        // Suppressed on the lower screen while tap-to-use is on, so tapping Kit items never pauses
+                        // (the game screen's own double-tap, MainActivity, is unaffected).
+                        if (pauseToggle != null && prefs.getBoolean("thor_tap_pause", true)
+                                && !prefs.getBoolean("thor_tap_to_use", true)) { pauseToggle.run(); updatePauseButton(); }
                         return false;
                     }
                     @Override public boolean onFling(android.view.MotionEvent e1, android.view.MotionEvent e2, float vx, float vy) {
@@ -719,6 +729,8 @@ final class ThorCompanionScreen implements DisplayManager.DisplayListener {
             TextView l = text("", 8); l.setTextColor(0xff8c7a5a); l.setGravity(Gravity.CENTER); l.setMaxLines(1); l.setEllipsize(android.text.TextUtils.TruncateAt.END);
             col.addView(l, new LinearLayout.LayoutParams(-1, -2));
             invCount[i] = g; invName[i] = l;
+            final int slot = i;
+            col.setOnClickListener(v -> { flashTap(v); tapUse(invId[slot]); });
             return col;
         }
         View hudCounter(String icon, String label, String value, int iconColor, int capture) {
@@ -733,6 +745,8 @@ final class ThorCompanionScreen implements DisplayManager.DisplayListener {
             else if (capture == 2) insightVal = val;
             else if (capture == 3) vialsVal = val;
             else if (capture == 4) bulletsVal = val;
+            if (capture == 3) box.setOnClickListener(v -> { flashTap(v); tapUse(1000); });      // Blood Vials
+            else if (capture == 4) box.setOnClickListener(v -> { flashTap(v); tapUse(900); });  // Quicksilver Bullets
             return box;
         }
         /** Each companion tick: pull the player's live figures and update the Kit HUD. VITALITY and BLOOD
@@ -755,8 +769,26 @@ final class ThorCompanionScreen implements DisplayManager.DisplayListener {
                 if (s != null && i < gn) {
                     invCount[i].setText(String.valueOf(s.goodsCounts[i]));
                     invName[i].setText(BbItems.name(s.goodsIds[i]));
-                } else { invCount[i].setText(""); invName[i].setText(""); }
+                    invId[i] = s.goodsIds[i];
+                } else { invCount[i].setText(""); invName[i].setText(""); invId[i] = 0; }
             }
+        }
+        /** A Kit cell was tapped: ask the game to use that carried item. The count dropping on the next
+         *  poll is the confirmation; the use runs on the game's own thread (bbport_use_item). */
+        void tapUse(int goodsId) {
+            if (goodsId <= 0 || !prefs.getBoolean("thor_tap_to_use", true)) return;
+            // Items with a dedicated game button get pressed so the real animation plays:
+            //   Blood Vial (1000) = △ (heal), Quicksilver Bullets (900) = L2 (fire the left-hand firearm).
+            // Everything else is applied directly on the game thread (instant, no animation).
+            if (goodsId == 1000 && padPulse != null) { padPulse.accept("triangle"); return; }
+            if (goodsId == 900 && padPulse != null) { padPulse.accept("l2"); return; }
+            if (useRequest != null) useRequest.accept(goodsId);
+        }
+        /** A quick dim-and-restore so a tap on a Kit cell feels responsive (the cells are plain views). */
+        void flashTap(View v) {
+            v.animate().cancel(); v.setAlpha(1f);
+            v.animate().alpha(0.3f).setDuration(70)
+                    .withEndAction(() -> v.animate().alpha(1f).setDuration(140).start()).start();
         }
         void setBarFrac(View fill, View empty, float frac) {
             frac = Math.max(0.01f, Math.min(1f, frac));
