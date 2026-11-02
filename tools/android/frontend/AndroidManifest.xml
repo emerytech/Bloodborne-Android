@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    package="com.emerytech.bloodbornethor" android:versionCode="24" android:versionName="2.2.0-thor.0.21.4">
+    package="com.emerytech.bloodbornethor" android:versionCode="25" android:versionName="2.2.0-thor.0.22.0">
     <uses-sdk android:minSdkVersion="28" android:targetSdkVersion="28" />
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.VIBRATE" />

@@ -126,6 +126,19 @@ final class PadBridge {
         write();
     }
 
+    /** Momentarily press a virtual button (a destination name, e.g. "triangle" to use a Blood Vial from
+     *  the companion), then release it — so the game plays the real animation. */
+    void pulse(String button, long ms) {
+        final long hold = Math.max(40, ms);
+        if (button.equals("l2") || button.equals("r2")) { // triggers are the analog value, not a key
+            if (button.equals("l2")) virtualL2 = 255; else virtualR2 = 255; write();
+            handler.postDelayed(() -> { if (button.equals("l2")) virtualL2 = 0; else virtualR2 = 0; write(); }, hold);
+            return;
+        }
+        virtualKeys.add(button); write();
+        handler.postDelayed(() -> { virtualKeys.remove(button); write(); }, hold);
+    }
+
     void reset() {
         keys.clear(); lx=ly=rx=ry=128; l2=r2=hatX=hatY=0;
         virtualKeys.clear(); virtualLx=virtualLy=virtualRx=virtualRy=128;
