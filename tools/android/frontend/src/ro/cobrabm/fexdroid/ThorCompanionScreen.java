@@ -191,6 +191,11 @@ final class ThorCompanionScreen implements DisplayManager.DisplayListener {
         } catch (Exception ignored) { }
         return !Float.isNaN(best) ? best : anyMax;
     }
+    /** The player-facing name of a graphics-preset key (the internal keys stay performance/balanced/quality). */
+    static String presetLabel(String key) {
+        return "performance".equals(key) ? "Smooth 60" : "balanced".equals(key) ? "Balanced 40"
+            : "quality".equals(key) ? "Fidelity 60" : key;
+    }
     /** {current, average, 1%-low} FPS from the companion's frame-time window, or null — read by the on-game HUD. */
     float[] fpsForHud() { return perfStats(); }
     void resume() {
@@ -217,12 +222,16 @@ final class ThorCompanionScreen implements DisplayManager.DisplayListener {
     private void sampleFrame(long nowNanos) {
         long f = BbPresent.framesIfLoaded();
         if (f <= 0) { lastFrames = f; lastFrameNanos = nowNanos; frameMsCount = 0; return; }
-        if (lastFrames >= 0 && f > lastFrames && nowNanos > lastFrameNanos) {
+        if (lastFrames < 0) { lastFrames = f; lastFrameNanos = nowNanos; return; } // first sample: set the baseline
+        // No new game frame at this vsync: keep the baseline so the measured interval spans real game frames,
+        // not the panel's 120 Hz vsyncs (resetting it every vsync made a 35 fps game read as ~120).
+        if (f <= lastFrames) return;
+        if (nowNanos > lastFrameNanos) {
             long nf = f - lastFrames;
             float per = (nowNanos - lastFrameNanos) / 1_000_000f / nf;
             if (per > 0 && per < 1000) { int push = (int) Math.min(nf, 4); for (int i = 0; i < push; i++) pushFrameMs(per); }
         }
-        lastFrames = f; lastFrameNanos = nowNanos;
+        lastFrames = f; lastFrameNanos = nowNanos; // advance the baseline only when the game actually presented frames
     }
     private void pushFrameMs(float ms) {
         frameMs[frameMsHead] = ms; frameMsHead = (frameMsHead + 1) % frameMs.length;
@@ -391,8 +400,7 @@ final class ThorCompanionScreen implements DisplayManager.DisplayListener {
                 e.getValue().setTextColor(on ? 0xff101923 : 0xffe5ddcd);
             }
             if (presetActiveLabel != null) {
-                String name = "performance".equals(active) ? "Performance" : "balanced".equals(active) ? "Balanced"
-                    : "quality".equals(active) ? "Quality" : null;
+                String name = active == null ? null : presetLabel(active);
                 presetActiveLabel.setText(name == null ? "Active: custom settings" : "Active: " + name);
             }
         }
@@ -878,7 +886,7 @@ final class ThorCompanionScreen implements DisplayManager.DisplayListener {
         void applyPreset(String key) {
             if (presetApplier == null) return;
             try { presetApplier.accept(key); } catch (RuntimeException ignored) { }
-            android.widget.Toast.makeText(getContext(), key.substring(0, 1).toUpperCase(Locale.US) + key.substring(1) + " preset — restarting", android.widget.Toast.LENGTH_SHORT).show();
+            android.widget.Toast.makeText(getContext(), presetLabel(key) + " preset — restarting", android.widget.Toast.LENGTH_SHORT).show();
             highlightActivePreset();
         }
         void applyBrightness(int pct) {
@@ -1010,12 +1018,12 @@ final class ThorCompanionScreen implements DisplayManager.DisplayListener {
             LinearLayout.LayoutParams plp = new LinearLayout.LayoutParams(-2, -2); plp.topMargin = dp(18); pl.setLayoutParams(plp); col.addView(pl);
             LinearLayout presets = new LinearLayout(getContext()); col.addView(presets);
             presetButtons = new java.util.LinkedHashMap<>();
-            presetButtons.put("performance", button(presets, "Performance", () -> applyPreset("performance")));
-            presetButtons.put("balanced", button(presets, "Balanced", () -> applyPreset("balanced")));
-            presetButtons.put("quality", button(presets, "Quality", () -> applyPreset("quality")));
+            presetButtons.put("performance", button(presets, presetLabel("performance"), () -> applyPreset("performance")));
+            presetButtons.put("balanced", button(presets, presetLabel("balanced"), () -> applyPreset("balanced")));
+            presetButtons.put("quality", button(presets, presetLabel("quality"), () -> applyPreset("quality")));
             presetActiveLabel = text("", 11); presetActiveLabel.setTextColor(0xffc6ad76);
             LinearLayout.LayoutParams palp = new LinearLayout.LayoutParams(-2, -2); palp.topMargin = dp(6); presetActiveLabel.setLayoutParams(palp); col.addView(presetActiveLabel);
-            TextView pn = text("Performance   720p · GSR · 60 fps\nBalanced   1080p · GSR · 45 fps\nQuality   1080p · FSR 3.1 + frame-gen · 30 fps", 10);
+            TextView pn = text("Smooth 60   720p · GSR · 60 fps\nBalanced 40   native 1080p · 40 fps\nFidelity 60   native 1080p · frame-gen → 60 (Lossless if set up, else FSR 3.1)", 10);
             pn.setTextColor(0xff8c93a0); pn.setLineSpacing(dp(3), 1); LinearLayout.LayoutParams pnp = new LinearLayout.LayoutParams(-2, -2); pnp.topMargin = dp(6); pn.setLayoutParams(pnp); col.addView(pn);
             highlightActivePreset();
             ScrollView sv = new ScrollView(getContext()); sv.addView(col); return sv;

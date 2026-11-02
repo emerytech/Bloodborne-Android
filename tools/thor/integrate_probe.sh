@@ -62,6 +62,16 @@ done
 chmod 755 "$probe"
 file "$probe" | grep -q "ARM aarch64" || { echo "rebuilt bb-probe is not ARM aarch64" >&2; exit 1; }
 
+# Ship THIS fork's default settings, not upstream's copy baked into the payload. SettingsDefaults.java
+# applies bbport.default.ini on a first install (and once on update), and the Thor graphics-preset defaults
+# (Balanced 40, etc.) live in tools/android/thor.ini — the prepare_runtime path would otherwise keep
+# ducvd89's defaults. build_release_runtime.py maps the same file; this keeps the prepare_runtime path in step.
+if [ -f tools/android/thor.ini ] && [ -f "$work/bbport/bbport.default.ini" ]; then
+  cp -f tools/android/thor.ini "$work/bbport/bbport.default.ini"
+  chmod 644 "$work/bbport/bbport.default.ini"
+  echo "  bbport.default.ini <- tools/android/thor.ini (fork defaults)"
+fi
+
 # Repack (ustar: the device extracts with toybox `tar -oxzf`). Drop the build scratch first.
 rm -rf "$atr" "$work/.libatrac9.a"
 ( cd "$work" && tar --format=ustar -czf - bbport ) > "$payload.new"

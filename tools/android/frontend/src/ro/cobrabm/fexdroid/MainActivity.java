@@ -1776,30 +1776,37 @@ public final class MainActivity extends Activity {
         hud.setVisibility(View.VISIBLE);
     }
     /** One-tap graphics preset from the lower-screen Status tab: writes the perf-relevant bbport.ini keys and restarts. */
-    private static final String[] PRESET_KEYS={"output_res","upscaler","fps_limit","frame_generation","speed_floor"};
-    private static final String[] PRESET_DEFAULTS={"1920x1080","gsr2","30","0","20"}; // used for a key the file does not set
+    private static final String[] PRESET_KEYS={"output_res","upscaler","fps_limit","frame_generation","lsfg_multiplier","speed_floor"};
+    private static final String[] PRESET_DEFAULTS={"1920x1080","gsr2","40","0","0","20"}; // used for a key the file does not set
     private static final LinkedHashMap<String,String[]> GRAPHICS_PRESETS=new LinkedHashMap<>();
     static {
-        GRAPHICS_PRESETS.put("performance",new String[]{"1280x720","gsr2","60","0","20"});
-        GRAPHICS_PRESETS.put("balanced",   new String[]{"1920x1080","gsr2","45","0","20"});
-        GRAPHICS_PRESETS.put("quality",    new String[]{"1920x1080","fsr3","30","1","30"});
+        // Tuned for the AYN Thor's 120 Hz panel: caps that divide 120 evenly (60/40/30) pace cleanly.
+        GRAPHICS_PRESETS.put("performance",new String[]{"1280x720","gsr2","60","0","0","20"}); // Smooth 60: 720p upscaled, true 60 fps
+        GRAPHICS_PRESETS.put("balanced",   new String[]{"1920x1080","gsr2","40","0","0","20"}); // Balanced 40 (default): native 1080p, true 40 fps
+        GRAPHICS_PRESETS.put("quality",    new String[]{"1920x1080","fsr3","30","1","0","30"}); // Fidelity 60: native 1080p, FSR 3.1 frame-gen -> 60
     }
+    /** Fidelity 60 when the player's own Lossless.dll is present: Lossless Scaling frame generation (higher quality
+     *  than FSR 3.1) on a GSR-2 base, 30 fps base doubled to ~60. Substituted for the FSR 3.1 shape at apply time. */
+    private static final String[] QUALITY_LSFG={"1920x1080","gsr2","30","0","2","30"};
     private void applyGraphicsPreset(String key) {
-        String[] v=GRAPHICS_PRESETS.get(key); if (v==null) v=GRAPHICS_PRESETS.get("balanced");
+        String[] v=GRAPHICS_PRESETS.get(key); if (v==null) { key="balanced"; v=GRAPHICS_PRESETS.get("balanced"); }
+        if ("quality".equals(key) && losslessDll()!=null) v=QUALITY_LSFG; // prefer Lossless frame generation when it is set up
         Map<String,String> m=new LinkedHashMap<>();
         for (int i=0;i<PRESET_KEYS.length;++i) m.put(PRESET_KEYS[i],v[i]);
         new SettingsDialog(this,new File(BASE,"bbport.ini"),this::restartGame).setAll(m);
         if (displayReady) restartGame();
     }
-    /** The graphics preset whose five keys all match bbport.ini right now, or null (custom). */
+    private static boolean presetMatches(String[] cur,String[] want) {
+        for (int i=0;i<cur.length;++i) if (!cur[i].equals(want[i])) return false;
+        return true;
+    }
+    /** The graphics preset whose keys all match bbport.ini right now, or null (custom). Fidelity 60 matches either
+     *  its FSR 3.1 or its Lossless shape. */
     private String activeGraphicsPreset() {
         String[] cur=new String[PRESET_KEYS.length];
         for (int i=0;i<PRESET_KEYS.length;++i) { String s=setting(PRESET_KEYS[i]); cur[i]=(s==null||s.isEmpty())?PRESET_DEFAULTS[i]:s; }
-        for (Map.Entry<String,String[]> e:GRAPHICS_PRESETS.entrySet()) {
-            boolean all=true;
-            for (int i=0;i<PRESET_KEYS.length;++i) if (!cur[i].equals(e.getValue()[i])) { all=false; break; }
-            if (all) return e.getKey();
-        }
+        for (Map.Entry<String,String[]> e:GRAPHICS_PRESETS.entrySet()) if (presetMatches(cur,e.getValue())) return e.getKey();
+        if (presetMatches(cur,QUALITY_LSFG)) return "quality"; // the Lossless shape of Fidelity 60
         return null;
     }
     /** Tells the OS (GameManager, Android 13+) whether the game is loading or being played: game boosters and
