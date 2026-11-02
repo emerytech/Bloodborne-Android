@@ -661,13 +661,6 @@ final class ThorCompanionScreen implements DisplayManager.DisplayListener {
             stats.addView(hudCounter("◈", "BLOOD ECHOES", "—", 0xffd9c79a, 1), weight());
             stats.addView(hudCounter("◉", "INSIGHT", "—", 0xff9bbcd6, 2), weight());
             in.addView(stats);
-            in.addView(section("HOTBAR"));
-            LinearLayout bar = rowBox(0);
-            bar.addView(hudSlot("△", "TOOL"), weight());
-            bar.addView(hudSlot("▽", "QUICK"), weight());
-            bar.addView(hudSlot("◁", "LEFT"), weight());
-            bar.addView(hudSlot("▷", "RIGHT"), weight());
-            in.addView(bar);
             LinearLayout ammo = rowBox(dp(8));
             ammo.addView(hudCounter("❤", "BLOOD VIALS", "—", 0xffc2524f, 3), weight());
             ammo.addView(hudCounter("◆", "QUICKSILVER", "—", 0xff7fa7d6, 4), weight());
@@ -698,22 +691,13 @@ final class ThorCompanionScreen implements DisplayManager.DisplayListener {
             else if (which == 2) { staFill = f; staEmpty = e; }
             return col;
         }
-        View hudSlot(String glyph, String label) {
-            LinearLayout col = new LinearLayout(getContext()); col.setOrientation(LinearLayout.VERTICAL); col.setGravity(Gravity.CENTER_HORIZONTAL);
-            FrameLayout frame = new FrameLayout(getContext());
-            android.graphics.drawable.GradientDrawable fb = new android.graphics.drawable.GradientDrawable(); fb.setColor(0xff13100d); fb.setCornerRadius(dp(6)); fb.setStroke(dp(1), 0xff5a4a30); frame.setBackground(fb);
-            TextView g = text(glyph == null ? "" : glyph, 21); g.setTextColor(0xff8a7a58); g.setGravity(Gravity.CENTER); frame.addView(g, new FrameLayout.LayoutParams(-1, -1));
-            col.addView(frame, new LinearLayout.LayoutParams(-1, dp(46)));
-            if (label != null) { TextView l = text(label, 8); l.setTextColor(0xff8c7a5a); l.setGravity(Gravity.CENTER); l.setPadding(0, dp(1), 0, 0); col.addView(l, new LinearLayout.LayoutParams(-1, -2)); }
-            return col;
-        }
         /** An inventory cell whose count (in the frame) and item name (below) are updated live in pollHud. */
         View invSlot(int i) {
             LinearLayout col = new LinearLayout(getContext()); col.setOrientation(LinearLayout.VERTICAL); col.setGravity(Gravity.CENTER_HORIZONTAL);
             FrameLayout frame = new FrameLayout(getContext());
             android.graphics.drawable.GradientDrawable fb = new android.graphics.drawable.GradientDrawable(); fb.setColor(0xff13100d); fb.setCornerRadius(dp(6)); fb.setStroke(dp(1), 0xff3a3024); frame.setBackground(fb);
-            TextView g = text("", 15); g.setTextColor(0xffe8dfc9); g.setTypeface(Typeface.SERIF, Typeface.BOLD); g.setGravity(Gravity.CENTER); frame.addView(g, new FrameLayout.LayoutParams(-1, -1));
-            col.addView(frame, new LinearLayout.LayoutParams(-1, dp(32)));
+            TextView g = text("", 18); g.setTextColor(0xffe8dfc9); g.setTypeface(Typeface.SERIF, Typeface.BOLD); g.setGravity(Gravity.CENTER); frame.addView(g, new FrameLayout.LayoutParams(-1, -1));
+            col.addView(frame, new LinearLayout.LayoutParams(-1, dp(44)));
             TextView l = text("", 8); l.setTextColor(0xff8c7a5a); l.setGravity(Gravity.CENTER); l.setMaxLines(1); l.setEllipsize(android.text.TextUtils.TruncateAt.END);
             col.addView(l, new LinearLayout.LayoutParams(-1, -2));
             invCount[i] = g; invName[i] = l;
