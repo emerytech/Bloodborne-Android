@@ -26,14 +26,15 @@ if [[ -z $src ]]; then
 fi
 [[ -f $src/CMakeLists.txt && -f $src/externals/cryptopp/cryptlib.h ]] \
     || { echo "No ps4-pkg-tools source (set BB_PKG_TOOL_SRC): ${src:-.local-deps/src/ps4-pkg-tools}" >&2; exit 1; }
-# The patched copy: src/ copied, everything else (the big vendored externals) linked.
+# The patched copy: src/ and CMakeLists.txt copied (the patches change both), everything else (the big
+# vendored externals) linked.
 copy=$root/out/pkg-tool-src
 rm -rf "$copy"
 mkdir -p "$copy"
 for entry in "$src"/*; do
-    [[ ${entry##*/} == src ]] || ln -s "$entry" "$copy/${entry##*/}"
+    [[ ${entry##*/} == src || ${entry##*/} == CMakeLists.txt ]] || ln -s "$entry" "$copy/${entry##*/}"
 done
-cp -a "$src/src" "$copy/src"
+cp -a "$src/src" "$copy/src"; cp -a "$src/CMakeLists.txt" "$copy/CMakeLists.txt"
 for patch in "$root"/tools/android/pkg-tool-patches/*.patch; do
     patch -d "$copy" -p1 -s < "$patch" || { echo "Patch failed: $patch" >&2; exit 1; }
 done
