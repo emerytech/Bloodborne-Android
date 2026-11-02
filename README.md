@@ -74,11 +74,11 @@ The lower screen is a touchscreen. **Artwork is the home view** — tap a tab to
 | **Menu** | The full in-game menu — settings, cheats, mods, saves, online, graphics, controls — mirrored onto the bottom touchscreen. Dialogs open on the upper screen. |
 | **Controls** | A quick reference for the Bloodborne button layout (combat, parry/rally, movement, menus, tips). The glyphs are a reference, not touch buttons. |
 | **Artwork** | The home view: the game's own key art, read from your `sce_sys` folder. |
-| **Kit** | **THE HUNTER** — your live player stats, read straight from the running game: Vitality and Stamina bars, Blood Echoes, Insight, Blood Vials, Quicksilver, and your carried inventory with item names, all updating as you play. A condensed performance line — FPS, frame time, SoC temperature, CPU, GPU, RAM and battery — sits under the inventory so you can glance at how the game is running without leaving the view. |
+| **Kit** | **THE HUNTER** — your live player stats, read straight from the running game: Vitality and Stamina bars, Blood Echoes, Insight, Blood Vials, Quicksilver, and your carried inventory with item names, all updating as you play. A condensed performance line — FPS, frame time, SoC temperature, CPU, GPU, RAM and battery — sits under the inventory so you can glance at how the game is running without leaving the view. **Tap an inventory item to use it in-game:** a Blood Vial plays the heal animation and Quicksilver fires your firearm (both by injecting their button press), while other items apply instantly; a **Tap to use items** toggle in the game menu turns it on or off (on by default). |
 | **Trophies** | Your PS4 trophy board, read from the game's own save — unlocked and locked, with names, descriptions and grades. |
 | **Journal** | A notepad for your own hunt notes, kept on the device. |
 | **Status** | A live readout, refreshed every second: FPS with a rolling average and 1% low, a frame-time graph (with 60 and 30 FPS guide lines), CPU, RAM, battery, and SoC temperature — which turns amber, then red, and warns when the chip runs hot — plus a clock and a brightness slider for the lower screen. |
-| **Tune** | The on-game HUD toggle and one-tap graphics presets. The HUD is a small FPS/temperature overlay on the **upper** (game) screen — off, FPS only, or full (adds average, 1% low and temperature). The presets — **Performance**, **Balanced**, **Quality** — apply resolution, upscaler, FPS cap and frame-generation in one tap and restart the game. |
+| **Tune** | The on-game HUD toggle and one-tap graphics presets, tuned for the Thor's 120 Hz screen (caps that divide 120 evenly pace cleanly). The HUD is a small FPS/temperature overlay on the **upper** (game) screen — off, FPS only, or full (adds average, 1% low and temperature). The three presets set resolution, upscaler, FPS cap and frame-generation in one tap and restart the game: **Smooth 60** (720p upscaled, locked 60 fps), **Balanced 40** (native 1080p, 40 fps — the default) and **Fidelity 60** (native 1080p with frame generation to ~60). Fidelity 60 is **Lossless-aware** — it uses your own Lossless Scaling `Lossless.dll` for frame generation when you've added one (higher quality), and falls back to built-in FSR 3.1 otherwise. |
 | **Help** | Pauses the game and shows the full how-it-works note, the gesture list and the disclosure on the lower screen; tap Help again (or any tab) to resume. |
 
 | The Kit tab: live player stats + inventory + performance line | The game on the upper screen |
@@ -87,11 +87,11 @@ The lower screen is a touchscreen. **Artwork is the home view** — tap a tab to
 
 | Live status readout + frame-time graph | Tune tab: on-game HUD + graphics presets |
 |---|---|
-| ![FPS with average and 1% low, CPU, RAM, battery, SoC temperature and a live frame-time graph](https://github.com/emerytech/Bloodborne-Android/releases/download/thor-v0.10.0-preview.1/thor-0.10-status.png) | ![The Tune tab: on-game HUD toggle and Performance / Balanced / Quality graphics presets](https://github.com/emerytech/Bloodborne-Android/releases/download/thor-v0.10.0-preview.1/thor-0.10-tune.png) |
+| ![Live Status readout: FPS with a rolling average and 1% low, CPU, RAM, battery, SoC temperature and a frame-time graph](docs/readme/status.png) | ![The Tune tab: the on-game HUD toggle and the Smooth 60 / Balanced 40 / Fidelity 60 graphics presets](docs/readme/tune.png) |
 
 | Game menu on the lower screen | On-game HUD on the upper screen |
 |---|---|
-| ![Game menu mirrored to the bottom touchscreen](https://github.com/emerytech/Bloodborne-Android/releases/download/thor-v0.10.0-preview.1/thor-0.10-menu.png) | ![A small FPS, average, 1% low and temperature overlay in the upper-right of the game screen](https://github.com/emerytech/Bloodborne-Android/releases/download/thor-v0.10.0-preview.1/thor-0.10-game-hud.png) |
+| ![The in-game menu mirrored onto the lower touchscreen](docs/readme/menu.png) | ![The small on-game FPS, frame-time and temperature overlay in the corner of the game screen](docs/readme/game-hud.png) |
 
 Upstream's **Hunter's Atlas** second-screen map is preserved. The game menu's **Thor companion** entry offers hide/show and the Atlas map; turning the map on hands the lower screen to Atlas until you turn it off again.
 
