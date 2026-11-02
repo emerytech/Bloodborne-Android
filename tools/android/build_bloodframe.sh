@@ -39,4 +39,35 @@ cmp -s "$src/android/bb_lsfg.h" tools/android/lsfg/bb_lsfg.h ||
 if [[ -f $build/CMakeCache.txt ]] && ! grep -qx "CMAKE_HOME_DIRECTORY:INTERNAL=$src" "$build/CMakeCache.txt"; then
     rm -rf "$build"
 fi
+# PancakeTAS/dxbc — bloodframe's thirdparty/dxbc submodule, pinned at 78ab59a8 — was deleted from
+# GitHub, so a plain `git submodule update` can no longer fetch it. We vendor that exact revision in
+# tree at tools/android/dxbc (DXVK's DXBC->SPIR-V translator, zlib licence; verified byte-for-byte
+# against the pinned commit, which bloodframe links into libbloodframe.so). Build a throwaway local
+# git repo from the vendored tree and point bloodframe's dxbc submodule at it so the build resolves
+# offline. The GIT_CONFIG_* env lets the submodule's own `git clone` use the local (file) transport
+# without touching the user's global git config.
+dxbc_vendor=$PWD/tools/android/dxbc
+if [[ -f $dxbc_vendor/CMakeLists.txt ]]; then
+    dxbc_mirror=$out/dxbc-mirror.git
+    if [[ ! -d $dxbc_mirror/.git ]]; then
+        rm -rf "$dxbc_mirror" "$dxbc_mirror.tmp"
+        mkdir -p "$out"
+        cp -a "$dxbc_vendor" "$dxbc_mirror.tmp"
+        git -C "$dxbc_mirror.tmp" init -q
+        git -C "$dxbc_mirror.tmp" add -A
+        git -C "$dxbc_mirror.tmp" -c user.email=bbport@localhost -c user.name=bbport \
+            commit -qm "vendored dxbc (bloodframe pin 78ab59a8)"
+        mv "$dxbc_mirror.tmp" "$dxbc_mirror"
+    fi
+    dxbc_rev=$(git -C "$dxbc_mirror" rev-parse HEAD)
+    git -C "$src" checkout -q "$BLOODFRAME_COMMIT" -- .gitmodules
+    git -C "$src" config -f "$src/.gitmodules" submodule.thirdparty/dxbc.url "$dxbc_mirror"
+    git -C "$src" config submodule.thirdparty/dxbc.url "$dxbc_mirror"
+    rm -rf "$src/thirdparty/dxbc" "$src/.git/modules/thirdparty/dxbc"
+    git -C "$src" update-index --cacheinfo "160000,$dxbc_rev,thirdparty/dxbc"
+    export GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=protocol.file.allow GIT_CONFIG_VALUE_0=always
+    echo "dxbc: vendored mirror $dxbc_mirror @ $dxbc_rev (tools/android/dxbc)" >&2
+else
+    echo "WARN: tools/android/dxbc is missing; the dxbc submodule will try its deleted upstream" >&2
+fi
 taskset -c 2-23 nice -n 19 "$src/build-android.sh" --ndk "$ndk" --api "$api" --out "$out" --build-dir "$build" --jobs "$J"
