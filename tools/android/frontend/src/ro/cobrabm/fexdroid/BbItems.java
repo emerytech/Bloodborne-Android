@@ -9,6 +9,8 @@ final class BbItems {
     private BbItems() {}
     static String name(int id) {
         switch (id) {
+            case 100:  return "Hunter Mark";      // confirmed on-device (this port counts it)
+            case 120:  return "Notebook";         // confirmed on-device — leave messenger note
             case 900:  return "QS Bullet";       // Quicksilver Bullet
             case 910:  return "Blood Bullet";
             case 1000: return "Blood Vial";
@@ -22,8 +24,6 @@ final class BbItems {
             case 1230: return "Pebble";           // "stone"
             case 1240: return "Throw Knife";      // Throwing Knife
             case 1260: return "Pungent Cktl";     // Pungent Blood Cocktail ("beast seduction")
-            case 1400: return "Hunter Mark";      // "return" — Bold Hunter's Mark
-            case 1410: return "Notebook";         // "signpost" — leave messenger note
             case 2000: return "Augur";            // Augur of Ebrietas ("tentacle summoning")
             case 2010: return "A Call Beyond";    // "space summoning"
             default:
