@@ -11,6 +11,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      # build.sh runs tools/thor/integrate_probe.sh (since 0.20.0), which compiles LibAtrac9 into
+      # bb-probe; checkout@v4 does not fetch submodules. Only this one is needed here.
+      - run: git submodule update --init third_party/LibAtrac9
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
