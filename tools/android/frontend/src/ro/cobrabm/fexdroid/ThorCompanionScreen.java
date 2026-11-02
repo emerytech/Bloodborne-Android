@@ -158,20 +158,32 @@ final class ThorCompanionScreen implements DisplayManager.DisplayListener {
         "Atlas opens the Hunter’s map right here on the lower screen.",
     };
     private int tipIndex;
-    /** Highest valid SoC thermal-zone reading in °C, or NaN. Shared by the panel Status tab and the on-game HUD. */
+    /** A representative SoC temperature in °C (or NaN). The hottest *non-CPU-core* thermal zone — the
+     *  platform/GPU/memory sensors, close to the device's own skin reading — rather than the single
+     *  hottest CPU core, which spikes 10-15°C higher under emulation and over-reports "throttling".
+     *  Falls back to the overall max if nothing but CPU zones is readable. Shared by the Status tab and HUD. */
     static float readSocTempC() {
-        float max = Float.NaN;
+        float best = Float.NaN, anyMax = Float.NaN;
         try {
             File[] zs = new File("/sys/class/thermal").listFiles();
             if (zs != null) for (File z : zs) {
                 if (!z.getName().startsWith("thermal_zone")) continue;
+                String type = "";
+                try (BufferedReader r = new BufferedReader(new FileReader(new File(z, "type")))) {
+                    String t = r.readLine(); if (t != null) type = t.trim().toLowerCase(java.util.Locale.ROOT);
+                } catch (Exception ignored) { }
                 try (BufferedReader r = new BufferedReader(new FileReader(new File(z, "temp")))) {
                     String t = r.readLine();
-                    if (t != null) { float c = Long.parseLong(t.trim()) / 1000f; if (c > 20 && c < 150 && (Float.isNaN(max) || c > max)) max = c; }
+                    if (t == null) continue;
+                    float c = Long.parseLong(t.trim()) / 1000f;
+                    if (!(c > 20 && c < 150)) continue;
+                    if (Float.isNaN(anyMax) || c > anyMax) anyMax = c;
+                    if (type.startsWith("cpu")) continue; // skip the CPU core/subsystem zones (they run hottest)
+                    if (Float.isNaN(best) || c > best) best = c;
                 } catch (Exception ignored) { }
             }
         } catch (Exception ignored) { }
-        return max;
+        return !Float.isNaN(best) ? best : anyMax;
     }
     /** {current, average, 1%-low} FPS from the companion's frame-time window, or null — read by the on-game HUD. */
     float[] fpsForHud() { return perfStats(); }
