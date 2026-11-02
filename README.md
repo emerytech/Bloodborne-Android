@@ -2,7 +2,7 @@
 
 A personal, unofficial **EmeryTech** fork of [ducvd89/Bloodborne-Android](https://github.com/ducvd89/Bloodborne-Android), based on **android-2.2.0**, that builds Hunter's Companion into the game app for the **AYN Thor**. One installed app, one launch icon, one game-folder selection: the game runs on the upper screen and a touchscreen companion runs on the lower screen.
 
-![The lower-screen companion: tabs for the game menu, controls, artwork, a live status readout with a frame-time graph, and a Tune tab for the on-game HUD and graphics presets](https://github.com/emerytech/Bloodborne-Android/releases/download/thor-v0.10.0-preview.1/thor-0.10-panel.gif)
+![The lower-screen companion's Kit tab updating live while the game runs on the upper screen: Vitality and Stamina bars, Blood Echoes, Blood Vials and Quicksilver counts, the carried inventory, and a condensed performance line (FPS, frame time, SoC temperature, CPU, GPU, RAM, battery)](docs/readme/panel.gif)
 
 > **This is not a copy of the game.** No game, saves, game artwork, generated game code, or Lossless Scaling DLL is included. You provide your own game files, extracted from your own legally-owned disc. This is not an official Sony or FromSoftware product.
 
@@ -31,7 +31,7 @@ The Bloodborne Android port, compiler, runtime and Hunter's Atlas are the work o
 
 ### 1. Install the app
 
-1. Download **[Bloodborne-Thor-Companion-0.10.0-preview.apk](https://github.com/emerytech/Bloodborne-Android/releases/download/thor-v0.10.0-preview.1/Bloodborne-Thor-Companion-0.10.0-preview.apk)** from the [latest release](https://github.com/emerytech/Bloodborne-Android/releases) onto your Thor.
+1. Download the latest **Bloodborne-Thor-Companion** APK from the [latest release](https://github.com/emerytech/Bloodborne-Android/releases/latest) onto your Thor.
 2. Open it and install. Android will ask you to allow installing from your browser or file manager the first time — allow it, then install.
 3. **Do not install an upstream APK over this fork.** This build uses its own package (`com.emerytech.bloodbornethor`), so it sits beside any existing Bloodborne app without touching it.
 
@@ -74,9 +74,16 @@ The lower screen is a touchscreen. **Artwork is the home view** — tap a tab to
 | **Menu** | The full in-game menu — settings, cheats, mods, saves, online, graphics, controls — mirrored onto the bottom touchscreen. Dialogs open on the upper screen. |
 | **Controls** | A quick reference for the Bloodborne button layout (combat, parry/rally, movement, menus, tips). The glyphs are a reference, not touch buttons. |
 | **Artwork** | The home view: the game's own key art, read from your `sce_sys` folder. |
+| **Kit** | **THE HUNTER** — your live player stats, read straight from the running game: Vitality and Stamina bars, Blood Echoes, Insight, Blood Vials, Quicksilver, and your carried inventory with item names, all updating as you play. A condensed performance line — FPS, frame time, SoC temperature, CPU, GPU, RAM and battery — sits under the inventory so you can glance at how the game is running without leaving the view. |
+| **Trophies** | Your PS4 trophy board, read from the game's own save — unlocked and locked, with names, descriptions and grades. |
+| **Journal** | A notepad for your own hunt notes, kept on the device. |
 | **Status** | A live readout, refreshed every second: FPS with a rolling average and 1% low, a frame-time graph (with 60 and 30 FPS guide lines), CPU, RAM, battery, and SoC temperature — which turns amber, then red, and warns when the chip runs hot — plus a clock and a brightness slider for the lower screen. |
 | **Tune** | The on-game HUD toggle and one-tap graphics presets. The HUD is a small FPS/temperature overlay on the **upper** (game) screen — off, FPS only, or full (adds average, 1% low and temperature). The presets — **Performance**, **Balanced**, **Quality** — apply resolution, upscaler, FPS cap and frame-generation in one tap and restart the game. |
 | **Help** | Pauses the game and shows the full how-it-works note, the gesture list and the disclosure on the lower screen; tap Help again (or any tab) to resume. |
+
+| The Kit tab: live player stats + inventory + performance line | The game on the upper screen |
+|---|---|
+| ![THE HUNTER: Vitality and Stamina, Blood Echoes, Blood Vials, Quicksilver, the carried inventory, and a condensed FPS / frame time / temperature / CPU / GPU / RAM / battery line under it](docs/readme/kit.png) | ![Bloodborne running on the upper screen with the on-game FPS overlay](docs/readme/gameplay.png) |
 
 | Live status readout + frame-time graph | Tune tab: on-game HUD + graphics presets |
 |---|---|
@@ -92,7 +99,7 @@ Upstream's **Hunter's Atlas** second-screen map is preserved. The game menu's **
 
 Thumb-friendly swipes on the lower screen (also listed in the Help tab):
 
-- **Double-tap** the upper screen, or the Status tab, to **pause / resume** — a setting in the game menu, on by default.
+- **Double-tap** the upper screen, or anywhere on the lower screen, to **pause / resume** — a setting in the game menu, on by default.
 - **Swipe left** to put the **Hunter's Atlas** map on the lower screen while you keep playing up top (close it with the map's **Companion** button).
 - **Swipe up** to **pause and open the full map on the upper screen** for a close look; **swipe up again** to close it and resume.
 

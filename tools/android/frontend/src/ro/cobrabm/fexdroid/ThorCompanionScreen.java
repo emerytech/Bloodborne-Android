@@ -250,7 +250,7 @@ final class ThorCompanionScreen implements DisplayManager.DisplayListener {
         String directory = gameDirectory.get();
         String path = directory == null ? "" : new File(directory, "sce_sys/pic1.png").getAbsolutePath();
         if (!path.equals(imagePath)) loadArt(path);
-        if (panel != null) { panel.tickStatus(); panel.updatePauseButton(); panel.pollTrophies(); panel.pollHud(); }
+        if (panel != null) { panel.tickStatus(); panel.updatePauseButton(); panel.pollTrophies(); panel.pollHud(); panel.tickKitPerf(); }
     }
     private void loadArt(String path) {
         imagePath = path; final int generation = ++imageGeneration;
@@ -350,6 +350,7 @@ final class ThorCompanionScreen implements DisplayManager.DisplayListener {
         View hudBox;
         View hpFill, hpEmpty, staFill, staEmpty; TextView hpLabel, echoesVal, insightVal, vialsVal, bulletsVal; // live Kit-HUD refs
         final TextView[] invCount = new TextView[10], invName = new TextView[10]; // inventory-slot refs (count + item name)
+        TextView kitPerf; // compact performance strip under the Kit inventory
         LinearLayout cTitle, cTabs1, cTabs2, cTabs3; TextView cSubtitle, cFooter;
         boolean statusVisible, pausedForHelp; long lastCpuBusy = -1, lastCpuTotal = -1;
         String activeTab = "art";
@@ -647,7 +648,7 @@ final class ThorCompanionScreen implements DisplayManager.DisplayListener {
         // ---- Kit tab: a Bloodborne-styled HUD. Phase 1 is the look (placeholder values); the live items and
         //      counts come from a later native change that reads the game's own inventory. ----
         /** Kit opens fullscreen: hide the title/tabs/footer so the whole lower screen is the HUD; the Back button restores them. */
-        void showHud() { setChrome(false); showOnly(hudBox); activeTab = "hud"; shade.setBackgroundColor(0xef060607); pollHud(); startHudPoll(); }
+        void showHud() { setChrome(false); showOnly(hudBox); activeTab = "hud"; shade.setBackgroundColor(0xef060607); pollHud(); updateKitPerf(); startHudPoll(); }
         void setChrome(boolean v) {
             int vis = v ? View.VISIBLE : View.GONE;
             if (cTitle != null) cTitle.setVisibility(vis);
@@ -683,6 +684,11 @@ final class ThorCompanionScreen implements DisplayManager.DisplayListener {
                 for (int c = 0; c < 5; c++) row.addView(invSlot(r * 5 + c), weight());
                 in.addView(row);
             }
+            // A one-line performance readout under the inventory: the same figures the Status tab shows,
+            // so the player can watch how the game runs without leaving the Kit view. Updated on the 1s tick.
+            in.addView(section("PERFORMANCE"));
+            kitPerf = text("—", 11); kitPerf.setTypeface(Typeface.MONOSPACE); kitPerf.setTextColor(0xffbfae8c);
+            kitPerf.setPadding(dp(2), 0, 0, dp(2)); in.addView(kitPerf);
             ScrollView sv = new ScrollView(getContext()); sv.addView(in);
             col.addView(sv, new LinearLayout.LayoutParams(-1, 0, 1));
             return col;
@@ -904,6 +910,48 @@ final class ThorCompanionScreen implements DisplayManager.DisplayListener {
                 lastCpuBusy = busy; lastCpuTotal = total;
                 return pct < 0 ? -1 : Math.min(100, pct);
             } catch (Exception e) { return -1; }
+        }
+        /** Adreno busy percent from the kgsl sysfs (no root needed on the Thor), or -1. */
+        int readGpuPercent() {
+            try (BufferedReader r = new BufferedReader(new FileReader("/sys/class/kgsl/kgsl-3d0/gpu_busy_percentage"))) {
+                String s = r.readLine();
+                if (s != null) { java.util.regex.Matcher m = java.util.regex.Pattern.compile("(\\d+)").matcher(s); if (m.find()) return Math.min(100, Integer.parseInt(m.group(1))); }
+            } catch (Exception ignored) { }
+            try (BufferedReader r = new BufferedReader(new FileReader("/sys/class/kgsl/kgsl-3d0/gpubusy"))) {
+                String s = r.readLine();
+                if (s != null) { String[] p = s.trim().split("\\s+"); if (p.length >= 2) { long busy = Long.parseLong(p[0]), tot = Long.parseLong(p[1]); if (tot > 0) return (int) Math.min(100, busy * 100 / tot); } }
+            } catch (Exception ignored) { }
+            return -1;
+        }
+        void tickKitPerf() { if ("hud".equals(activeTab) && kitPerf != null) updateKitPerf(); }
+        /** One compact line under the Kit inventory: FPS · frametime · SoC temp · CPU% · GPU% · RAM · battery.
+         *  Reuses the Status tab's readers; refreshed on the 1s tick while the Kit tab is open. */
+        void updateKitPerf() {
+            if (kitPerf == null) return;
+            StringBuilder sb = new StringBuilder();
+            float[] p = perfStats();
+            if (p != null) sb.append(String.format(Locale.US, "%.0f fps · %.1f ms", p[0], 1000f / Math.max(0.001f, p[0])));
+            else sb.append("— fps");
+            float tempC = readSocTempC();
+            if (!Float.isNaN(tempC)) sb.append(String.format(Locale.US, " · %.0f°C", tempC));
+            int cpu = readCpuPercent(); sb.append(" · CPU ").append(cpu < 0 ? "—" : cpu + "%");
+            int gpu = readGpuPercent(); sb.append(" · GPU ").append(gpu < 0 ? "—" : gpu + "%");
+            try {
+                ActivityManager am = (ActivityManager) getContext().getSystemService(Context.ACTIVITY_SERVICE);
+                ActivityManager.MemoryInfo mi = new ActivityManager.MemoryInfo(); am.getMemoryInfo(mi);
+                double usedG = (mi.totalMem - mi.availMem) / 1073741824.0;
+                sb.append(String.format(Locale.US, " · RAM %.1fG", usedG));
+            } catch (Exception ignored) { }
+            try {
+                Intent b = getContext().registerReceiver(null, new IntentFilter(Intent.ACTION_BATTERY_CHANGED));
+                if (b != null) {
+                    int lvl = b.getIntExtra(BatteryManager.EXTRA_LEVEL, -1), scale = b.getIntExtra(BatteryManager.EXTRA_SCALE, 100);
+                    int pct = lvl < 0 ? -1 : Math.round(lvl * 100f / Math.max(1, scale));
+                    sb.append(" · BAT ").append(pct < 0 ? "—" : pct + "%");
+                }
+            } catch (Exception ignored) { }
+            kitPerf.setText(sb.toString());
+            kitPerf.setTextColor(!Float.isNaN(tempC) && tempC >= 92 ? 0xffe0534b : !Float.isNaN(tempC) && tempC >= 85 ? 0xffe0a44b : 0xffbfae8c);
         }
         /** Tune tab (in the former Couchside slot): the on-game HUD toggle and the one-tap graphics presets.
          *  Kept off the Status tab so the live readout there is never pushed off screen. */
