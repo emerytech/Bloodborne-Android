@@ -123,6 +123,12 @@ final class ThorCompanionScreen implements DisplayManager.DisplayListener {
      *  null when the game was not launched with the Atlas, for the Kit HUD. */
     private Supplier<AtlasStats> statsSource;
     void setStatsSource(Supplier<AtlasStats> f) { statsSource = f; }
+
+    private java.util.function.IntConsumer useRequest;
+    void setUseRequest(java.util.function.IntConsumer f) { useRequest = f; }
+
+    private java.util.function.Consumer<String> padPulse;
+    void setPadPulse(java.util.function.Consumer<String> f) { padPulse = f; } // press a game button so items with one animate
     private TrophyProgress trophyProgress;
     void setTrophySource(TrophyProgress p) { trophyProgress = p; }
     /** Set by MainActivity: toggle pause, read paused state, read whether a game is running — for the always-visible
@@ -185,6 +191,11 @@ final class ThorCompanionScreen implements DisplayManager.DisplayListener {
         } catch (Exception ignored) { }
         return !Float.isNaN(best) ? best : anyMax;
     }
+    /** The player-facing name of a graphics-preset key (the internal keys stay performance/balanced/quality). */
+    static String presetLabel(String key) {
+        return "performance".equals(key) ? "Smooth 60" : "balanced".equals(key) ? "Balanced 40"
+            : "quality".equals(key) ? "Fidelity 60" : key;
+    }
     /** {current, average, 1%-low} FPS from the companion's frame-time window, or null — read by the on-game HUD. */
     float[] fpsForHud() { return perfStats(); }
     void resume() {
@@ -211,12 +222,16 @@ final class ThorCompanionScreen implements DisplayManager.DisplayListener {
     private void sampleFrame(long nowNanos) {
         long f = BbPresent.framesIfLoaded();
         if (f <= 0) { lastFrames = f; lastFrameNanos = nowNanos; frameMsCount = 0; return; }
-        if (lastFrames >= 0 && f > lastFrames && nowNanos > lastFrameNanos) {
+        if (lastFrames < 0) { lastFrames = f; lastFrameNanos = nowNanos; return; } // first sample: set the baseline
+        // No new game frame at this vsync: keep the baseline so the measured interval spans real game frames,
+        // not the panel's 120 Hz vsyncs (resetting it every vsync made a 35 fps game read as ~120).
+        if (f <= lastFrames) return;
+        if (nowNanos > lastFrameNanos) {
             long nf = f - lastFrames;
             float per = (nowNanos - lastFrameNanos) / 1_000_000f / nf;
             if (per > 0 && per < 1000) { int push = (int) Math.min(nf, 4); for (int i = 0; i < push; i++) pushFrameMs(per); }
         }
-        lastFrames = f; lastFrameNanos = nowNanos;
+        lastFrames = f; lastFrameNanos = nowNanos; // advance the baseline only when the game actually presented frames
     }
     private void pushFrameMs(float ms) {
         frameMs[frameMsHead] = ms; frameMsHead = (frameMsHead + 1) % frameMs.length;
@@ -250,7 +265,7 @@ final class ThorCompanionScreen implements DisplayManager.DisplayListener {
         String directory = gameDirectory.get();
         String path = directory == null ? "" : new File(directory, "sce_sys/pic1.png").getAbsolutePath();
         if (!path.equals(imagePath)) loadArt(path);
-        if (panel != null) { panel.tickStatus(); panel.updatePauseButton(); panel.pollTrophies(); panel.pollHud(); }
+        if (panel != null) { panel.tickStatus(); panel.updatePauseButton(); panel.pollTrophies(); panel.pollHud(); panel.tickKitPerf(); }
     }
     private void loadArt(String path) {
         imagePath = path; final int generation = ++imageGeneration;
@@ -350,6 +365,8 @@ final class ThorCompanionScreen implements DisplayManager.DisplayListener {
         View hudBox;
         View hpFill, hpEmpty, staFill, staEmpty; TextView hpLabel, echoesVal, insightVal, vialsVal, bulletsVal; // live Kit-HUD refs
         final TextView[] invCount = new TextView[10], invName = new TextView[10]; // inventory-slot refs (count + item name)
+        TextView kitPerf; // compact performance strip under the Kit inventory
+        final int[] invId = new int[10]; // goods id shown in each Kit inventory slot (for tap-to-use)
         LinearLayout cTitle, cTabs1, cTabs2, cTabs3; TextView cSubtitle, cFooter;
         boolean statusVisible, pausedForHelp; long lastCpuBusy = -1, lastCpuTotal = -1;
         String activeTab = "art";
@@ -383,8 +400,7 @@ final class ThorCompanionScreen implements DisplayManager.DisplayListener {
                 e.getValue().setTextColor(on ? 0xff101923 : 0xffe5ddcd);
             }
             if (presetActiveLabel != null) {
-                String name = "performance".equals(active) ? "Performance" : "balanced".equals(active) ? "Balanced"
-                    : "quality".equals(active) ? "Quality" : null;
+                String name = active == null ? null : presetLabel(active);
                 presetActiveLabel.setText(name == null ? "Active: custom settings" : "Active: " + name);
             }
         }
@@ -403,7 +419,10 @@ final class ThorCompanionScreen implements DisplayManager.DisplayListener {
                     // Double-tap anywhere on the lower screen to pause/resume (same thor_tap_pause setting as the
                     // game screen). Observed in dispatchTouchEvent below, so children keep their own taps/slider.
                     @Override public boolean onDoubleTap(android.view.MotionEvent e) {
-                        if (pauseToggle != null && prefs.getBoolean("thor_tap_pause", true)) { pauseToggle.run(); updatePauseButton(); }
+                        // Suppressed on the lower screen while tap-to-use is on, so tapping Kit items never pauses
+                        // (the game screen's own double-tap, MainActivity, is unaffected).
+                        if (pauseToggle != null && prefs.getBoolean("thor_tap_pause", true)
+                                && !prefs.getBoolean("thor_tap_to_use", true)) { pauseToggle.run(); updatePauseButton(); }
                         return false;
                     }
                     @Override public boolean onFling(android.view.MotionEvent e1, android.view.MotionEvent e2, float vx, float vy) {
@@ -647,7 +666,7 @@ final class ThorCompanionScreen implements DisplayManager.DisplayListener {
         // ---- Kit tab: a Bloodborne-styled HUD. Phase 1 is the look (placeholder values); the live items and
         //      counts come from a later native change that reads the game's own inventory. ----
         /** Kit opens fullscreen: hide the title/tabs/footer so the whole lower screen is the HUD; the Back button restores them. */
-        void showHud() { setChrome(false); showOnly(hudBox); activeTab = "hud"; shade.setBackgroundColor(0xef060607); pollHud(); startHudPoll(); }
+        void showHud() { setChrome(false); showOnly(hudBox); activeTab = "hud"; shade.setBackgroundColor(0xef060607); pollHud(); updateKitPerf(); startHudPoll(); }
         void setChrome(boolean v) {
             int vis = v ? View.VISIBLE : View.GONE;
             if (cTitle != null) cTitle.setVisibility(vis);
@@ -683,6 +702,11 @@ final class ThorCompanionScreen implements DisplayManager.DisplayListener {
                 for (int c = 0; c < 5; c++) row.addView(invSlot(r * 5 + c), weight());
                 in.addView(row);
             }
+            // A one-line performance readout under the inventory: the same figures the Status tab shows,
+            // so the player can watch how the game runs without leaving the Kit view. Updated on the 1s tick.
+            in.addView(section("PERFORMANCE"));
+            kitPerf = text("—", 11); kitPerf.setTypeface(Typeface.MONOSPACE); kitPerf.setTextColor(0xffbfae8c);
+            kitPerf.setPadding(dp(2), 0, 0, dp(2)); in.addView(kitPerf);
             ScrollView sv = new ScrollView(getContext()); sv.addView(in);
             col.addView(sv, new LinearLayout.LayoutParams(-1, 0, 1));
             return col;
@@ -713,6 +737,8 @@ final class ThorCompanionScreen implements DisplayManager.DisplayListener {
             TextView l = text("", 8); l.setTextColor(0xff8c7a5a); l.setGravity(Gravity.CENTER); l.setMaxLines(1); l.setEllipsize(android.text.TextUtils.TruncateAt.END);
             col.addView(l, new LinearLayout.LayoutParams(-1, -2));
             invCount[i] = g; invName[i] = l;
+            final int slot = i;
+            col.setOnClickListener(v -> { flashTap(v); tapUse(invId[slot]); });
             return col;
         }
         View hudCounter(String icon, String label, String value, int iconColor, int capture) {
@@ -727,6 +753,8 @@ final class ThorCompanionScreen implements DisplayManager.DisplayListener {
             else if (capture == 2) insightVal = val;
             else if (capture == 3) vialsVal = val;
             else if (capture == 4) bulletsVal = val;
+            if (capture == 3) box.setOnClickListener(v -> { flashTap(v); tapUse(1000); });      // Blood Vials
+            else if (capture == 4) box.setOnClickListener(v -> { flashTap(v); tapUse(900); });  // Quicksilver Bullets
             return box;
         }
         /** Each companion tick: pull the player's live figures and update the Kit HUD. VITALITY and BLOOD
@@ -749,8 +777,26 @@ final class ThorCompanionScreen implements DisplayManager.DisplayListener {
                 if (s != null && i < gn) {
                     invCount[i].setText(String.valueOf(s.goodsCounts[i]));
                     invName[i].setText(BbItems.name(s.goodsIds[i]));
-                } else { invCount[i].setText(""); invName[i].setText(""); }
+                    invId[i] = s.goodsIds[i];
+                } else { invCount[i].setText(""); invName[i].setText(""); invId[i] = 0; }
             }
+        }
+        /** A Kit cell was tapped: ask the game to use that carried item. The count dropping on the next
+         *  poll is the confirmation; the use runs on the game's own thread (bbport_use_item). */
+        void tapUse(int goodsId) {
+            if (goodsId <= 0 || !prefs.getBoolean("thor_tap_to_use", true)) return;
+            // Items with a dedicated game button get pressed so the real animation plays:
+            //   Blood Vial (1000) = △ (heal), Quicksilver Bullets (900) = L2 (fire the left-hand firearm).
+            // Everything else is applied directly on the game thread (instant, no animation).
+            if (goodsId == 1000 && padPulse != null) { padPulse.accept("triangle"); return; }
+            if (goodsId == 900 && padPulse != null) { padPulse.accept("l2"); return; }
+            if (useRequest != null) useRequest.accept(goodsId);
+        }
+        /** A quick dim-and-restore so a tap on a Kit cell feels responsive (the cells are plain views). */
+        void flashTap(View v) {
+            v.animate().cancel(); v.setAlpha(1f);
+            v.animate().alpha(0.3f).setDuration(70)
+                    .withEndAction(() -> v.animate().alpha(1f).setDuration(140).start()).start();
         }
         void setBarFrac(View fill, View empty, float frac) {
             frac = Math.max(0.01f, Math.min(1f, frac));
@@ -840,7 +886,7 @@ final class ThorCompanionScreen implements DisplayManager.DisplayListener {
         void applyPreset(String key) {
             if (presetApplier == null) return;
             try { presetApplier.accept(key); } catch (RuntimeException ignored) { }
-            android.widget.Toast.makeText(getContext(), key.substring(0, 1).toUpperCase(Locale.US) + key.substring(1) + " preset — restarting", android.widget.Toast.LENGTH_SHORT).show();
+            android.widget.Toast.makeText(getContext(), presetLabel(key) + " preset — restarting", android.widget.Toast.LENGTH_SHORT).show();
             highlightActivePreset();
         }
         void applyBrightness(int pct) {
@@ -905,6 +951,48 @@ final class ThorCompanionScreen implements DisplayManager.DisplayListener {
                 return pct < 0 ? -1 : Math.min(100, pct);
             } catch (Exception e) { return -1; }
         }
+        /** Adreno busy percent from the kgsl sysfs (no root needed on the Thor), or -1. */
+        int readGpuPercent() {
+            try (BufferedReader r = new BufferedReader(new FileReader("/sys/class/kgsl/kgsl-3d0/gpu_busy_percentage"))) {
+                String s = r.readLine();
+                if (s != null) { java.util.regex.Matcher m = java.util.regex.Pattern.compile("(\\d+)").matcher(s); if (m.find()) return Math.min(100, Integer.parseInt(m.group(1))); }
+            } catch (Exception ignored) { }
+            try (BufferedReader r = new BufferedReader(new FileReader("/sys/class/kgsl/kgsl-3d0/gpubusy"))) {
+                String s = r.readLine();
+                if (s != null) { String[] p = s.trim().split("\\s+"); if (p.length >= 2) { long busy = Long.parseLong(p[0]), tot = Long.parseLong(p[1]); if (tot > 0) return (int) Math.min(100, busy * 100 / tot); } }
+            } catch (Exception ignored) { }
+            return -1;
+        }
+        void tickKitPerf() { if ("hud".equals(activeTab) && kitPerf != null) updateKitPerf(); }
+        /** One compact line under the Kit inventory: FPS · frametime · SoC temp · CPU% · GPU% · RAM · battery.
+         *  Reuses the Status tab's readers; refreshed on the 1s tick while the Kit tab is open. */
+        void updateKitPerf() {
+            if (kitPerf == null) return;
+            StringBuilder sb = new StringBuilder();
+            float[] p = perfStats();
+            if (p != null) sb.append(String.format(Locale.US, "%.0f fps · %.1f ms", p[0], 1000f / Math.max(0.001f, p[0])));
+            else sb.append("— fps");
+            float tempC = readSocTempC();
+            if (!Float.isNaN(tempC)) sb.append(String.format(Locale.US, " · %.0f°C", tempC));
+            int cpu = readCpuPercent(); sb.append(" · CPU ").append(cpu < 0 ? "—" : cpu + "%");
+            int gpu = readGpuPercent(); sb.append(" · GPU ").append(gpu < 0 ? "—" : gpu + "%");
+            try {
+                ActivityManager am = (ActivityManager) getContext().getSystemService(Context.ACTIVITY_SERVICE);
+                ActivityManager.MemoryInfo mi = new ActivityManager.MemoryInfo(); am.getMemoryInfo(mi);
+                double usedG = (mi.totalMem - mi.availMem) / 1073741824.0;
+                sb.append(String.format(Locale.US, " · RAM %.1fG", usedG));
+            } catch (Exception ignored) { }
+            try {
+                Intent b = getContext().registerReceiver(null, new IntentFilter(Intent.ACTION_BATTERY_CHANGED));
+                if (b != null) {
+                    int lvl = b.getIntExtra(BatteryManager.EXTRA_LEVEL, -1), scale = b.getIntExtra(BatteryManager.EXTRA_SCALE, 100);
+                    int pct = lvl < 0 ? -1 : Math.round(lvl * 100f / Math.max(1, scale));
+                    sb.append(" · BAT ").append(pct < 0 ? "—" : pct + "%");
+                }
+            } catch (Exception ignored) { }
+            kitPerf.setText(sb.toString());
+            kitPerf.setTextColor(!Float.isNaN(tempC) && tempC >= 92 ? 0xffe0534b : !Float.isNaN(tempC) && tempC >= 85 ? 0xffe0a44b : 0xffbfae8c);
+        }
         /** Tune tab (in the former Couchside slot): the on-game HUD toggle and the one-tap graphics presets.
          *  Kept off the Status tab so the live readout there is never pushed off screen. */
         void showTune() {
@@ -930,12 +1018,12 @@ final class ThorCompanionScreen implements DisplayManager.DisplayListener {
             LinearLayout.LayoutParams plp = new LinearLayout.LayoutParams(-2, -2); plp.topMargin = dp(18); pl.setLayoutParams(plp); col.addView(pl);
             LinearLayout presets = new LinearLayout(getContext()); col.addView(presets);
             presetButtons = new java.util.LinkedHashMap<>();
-            presetButtons.put("performance", button(presets, "Performance", () -> applyPreset("performance")));
-            presetButtons.put("balanced", button(presets, "Balanced", () -> applyPreset("balanced")));
-            presetButtons.put("quality", button(presets, "Quality", () -> applyPreset("quality")));
+            presetButtons.put("performance", button(presets, presetLabel("performance"), () -> applyPreset("performance")));
+            presetButtons.put("balanced", button(presets, presetLabel("balanced"), () -> applyPreset("balanced")));
+            presetButtons.put("quality", button(presets, presetLabel("quality"), () -> applyPreset("quality")));
             presetActiveLabel = text("", 11); presetActiveLabel.setTextColor(0xffc6ad76);
             LinearLayout.LayoutParams palp = new LinearLayout.LayoutParams(-2, -2); palp.topMargin = dp(6); presetActiveLabel.setLayoutParams(palp); col.addView(presetActiveLabel);
-            TextView pn = text("Performance   720p · GSR · 60 fps\nBalanced   1080p · GSR · 45 fps\nQuality   1080p · FSR 3.1 + frame-gen · 30 fps", 10);
+            TextView pn = text("Smooth 60   720p · GSR · 60 fps\nBalanced 40   native 1080p · 40 fps\nFidelity 60   native 1080p · frame-gen → 60 (Lossless if set up, else FSR 3.1)", 10);
             pn.setTextColor(0xff8c93a0); pn.setLineSpacing(dp(3), 1); LinearLayout.LayoutParams pnp = new LinearLayout.LayoutParams(-2, -2); pnp.topMargin = dp(6); pn.setLayoutParams(pnp); col.addView(pn);
             highlightActivePreset();
             ScrollView sv = new ScrollView(getContext()); sv.addView(col); return sv;

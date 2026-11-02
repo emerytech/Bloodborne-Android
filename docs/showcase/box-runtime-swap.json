@@ -1,0 +1,67 @@
+{
+  "payload_sha256_before": "4ff07557b84ab79405b4c515427b1e291dc9c7923a72bdbc8ce3741ed2d51aa9",
+  "swapped": {
+    "bin/bb-prepare": {
+      "upstream_sha256": "50bde3f6ac1e3f458f4b2233e4681e9ea1f3172b375c90a667ce9cb5a40b6075",
+      "box_sha256": "50bde3f6ac1e3f458f4b2233e4681e9ea1f3172b375c90a667ce9cb5a40b6075",
+      "size": 348632,
+      "changed": false
+    },
+    "bin/bb-probe": {
+      "upstream_sha256": "d2120bd5e4cc03a72f20497ae38e8f420ade4e2f4fc36ccfa59f201c7d365634",
+      "box_sha256": "40e228236ad008a6a46a62504642bab8e8e02ffcd4473827d38f60905c5cfa68",
+      "size": 435648,
+      "changed": true
+    },
+    "bin/bb-texpack": {
+      "upstream_sha256": "057f6c58467bcb8593466697c8c0a95990a409dce1477d7ee98e8b6d508c8f14",
+      "box_sha256": "057f6c58467bcb8593466697c8c0a95990a409dce1477d7ee98e8b6d508c8f14",
+      "size": 444024,
+      "changed": false
+    },
+    "bin/kgsl-chip-id": {
+      "upstream_sha256": "75172eb923e97c5e080e946783fdf1fb9d98e18c1be6714f6ae849b78bccde30",
+      "box_sha256": "75172eb923e97c5e080e946783fdf1fb9d98e18c1be6714f6ae849b78bccde30",
+      "size": 6560,
+      "changed": false
+    },
+    "bin/ps4-pkg-tool": {
+      "upstream_sha256": "b310413687b29b0010a2f5ee877737dd9407074411d8aab5e305b56411adb84f",
+      "box_sha256": "1ea45ce4f442be91bffe04c4a51fb8de13f6a27a629c3adaa5e83375a5ffcac7",
+      "size": 970576,
+      "changed": true
+    },
+    "lib/libbbcpu.so": {
+      "upstream_sha256": "cd18cd8ca1966fe8357c2607462071514d14116e28382e78e854ea0042421af6",
+      "box_sha256": "fc5b509865435df6b6421c70eb3c2051c2f098c75cb0d65acd085546005dca41",
+      "size": 123536,
+      "changed": true
+    },
+    "lib/libbbgpu.so": {
+      "upstream_sha256": "7e710d75bd886a3ee3668fb4f06f5474f342eff71aec39bb2c5e122ae80941f4",
+      "box_sha256": "65a9bab8650bea15938cebe796b5546b8d1814284a4d689b5ecf6eb9a789e7a8",
+      "size": 32623648,
+      "changed": true
+    },
+    "lib/libbbnet20.so": {
+      "upstream_sha256": "2cfe504c96d152ebc84d8f07849bab8a6344bf8d47abf48e8fd7c33e5c5563be",
+      "box_sha256": "2c13758dd458adc132db86aa66d291f8cd9aed7c948525f464abff51d5a76ec5",
+      "size": 11756440,
+      "changed": true
+    },
+    "lib/libbloodframe.so": {
+      "upstream_sha256": "8f8d0f5461f01c3c983091800a456590d85436039eaa0ad2cb1a8c78454a99ac",
+      "box_sha256": "3bd4cab35357aa54b49e56d6f8ef0c2ad55af6f4cf57b1b63d4133280c9db3a5",
+      "size": 1271496,
+      "changed": true
+    },
+    "lib/libc++_shared.so": {
+      "upstream_sha256": "7d32ac342ef0c04bd0ecb6215eb6af4de9932ff726a04294fb9d8534297bf9b3",
+      "box_sha256": "7d32ac342ef0c04bd0ecb6215eb6af4de9932ff726a04294fb9d8534297bf9b3",
+      "size": 1813976,
+      "changed": false
+    }
+  },
+  "box_tree": "/private/tmp/claude-501/-Users-temery-Developer/907b1e41-06b7-49f8-bfc7-4a1e690ff34b/scratchpad/boxbionic/stripped",
+  "payload_sha256_after": "df48f38893cedb87bb461066a9d839d15731a9e2d8e116fa2e8d7abe4fd673cd"
+}
