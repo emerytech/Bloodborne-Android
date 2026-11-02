@@ -20,12 +20,15 @@ import java.util.Map;
  *  The app writes atlas.flags ("gen N", then one flag id per line) before it starts the game (BB_ATLAS_FLAGS_FILE);
  *  the values count only when flags_gen equals N. Main thread only. */
 final class AtlasState implements AtlasFeatures.Flags {
-    static final int SIZE=8192, FLAGS_AT=64, MAX_FLAGS=SIZE-FLAGS_AT;
+    static final int SIZE=8192, FLAGS_AT=64, STATS_AT=7936, MAX_FLAGS=STATS_AT-FLAGS_AT;
 
     // the last consistent read
     boolean mapped, valid, menuOpen;
     float x, y, z, yaw;
     int block, tick, flagsGen, flagCount;
+    // live player figures (version 2+); *Valid flags say whether each value is present
+    boolean hpValid, echoesValid, spValid, insightValid, vialsValid, bulletsValid;
+    int curHp=-1, maxHp=-1, echoes=-1, curSp=-1, maxSp=-1, insight=-1, vials=-1, bullets=-1;
     private final byte[] flags=new byte[MAX_FLAGS];
     /** Bumped when the place or the flags changed since the previous poll() that returned true. */
     int flagsVersion;
@@ -33,6 +36,7 @@ final class AtlasState implements AtlasFeatures.Flags {
     private final File file;
     private int gen; private int[] ids=new int[0]; private final Map<Integer,Integer> index=new HashMap<>();
     private ByteBuffer map; private FileChannel channel; private Object key;
+    private int version;
     private long lastOpen;
     private boolean flagBytesChanged;
     private final byte[] scratch=new byte[MAX_FLAGS];
@@ -61,8 +65,12 @@ final class AtlasState implements AtlasFeatures.Flags {
     /** Drops the mapping and what was read (a new game process makes a new file). */
     void reset() {
         close(); mapped=false; valid=false; menuOpen=false; tick=0; flagsGen=0; flagCount=0; ++flagsVersion;
+        hpValid=false; echoesValid=false; spValid=false; insightValid=false; vialsValid=false; bulletsValid=false;
+        curHp=-1; maxHp=-1; echoes=-1; curSp=-1; maxSp=-1; insight=-1; vials=-1; bullets=-1;
         java.util.Arrays.fill(flags,(byte)-1);
     }
+    /** A copy of the player's live figures that stays as it is (for the companion HUD). */
+    AtlasStats statsSnapshot() { return new AtlasStats(hpValid,curHp,maxHp,echoesValid,echoes,spValid,curSp,maxSp,insightValid,insight,vialsValid,vials,bulletsValid,bullets); }
     void close() {
         map=null; key=null;
         if (channel!=null) { try { channel.close(); } catch (IOException ignored) {} channel=null; }
@@ -109,8 +117,9 @@ final class AtlasState implements AtlasFeatures.Flags {
             if (!file.isFile() || file.length()<SIZE) return false;
             FileChannel c=FileChannel.open(file.toPath(),StandardOpenOption.READ);
             ByteBuffer b=c.map(FileChannel.MapMode.READ_ONLY,0,SIZE).order(ByteOrder.LITTLE_ENDIAN);
-            if (b.getInt(0)!=0x54414242 || b.getInt(4)!=1) { c.close(); return false; }
-            channel=c; map=b;
+            int ver=b.getInt(4);
+            if (b.getInt(0)!=0x54414242 || ver<1 || ver>2) { c.close(); return false; }
+            channel=c; map=b; version=ver;
             try { key=java.nio.file.Files.readAttributes(file.toPath(),java.nio.file.attribute.BasicFileAttributes.class).fileKey(); }
             catch (Throwable e) { key=null; }
             return true;
@@ -127,8 +136,16 @@ final class AtlasState implements AtlasFeatures.Flags {
             int n=Math.max(0,Math.min(fc,Math.min(ids.length,MAX_FLAGS)));
             byte[] tmp=scratch;
             for (int i=0;i<n;++i) tmp[i]=b.get(FLAGS_AT+i);
+            int sv=version>=2 ? b.getInt(STATS_AT) : 0;
+            int ch=version>=2 ? b.getInt(STATS_AT+4) : -1, mh=version>=2 ? b.getInt(STATS_AT+8) : -1, ec=version>=2 ? b.getInt(STATS_AT+12) : -1;
+            int cs=version>=2 ? b.getInt(STATS_AT+16) : -1, ms=version>=2 ? b.getInt(STATS_AT+20) : -1, in=version>=2 ? b.getInt(STATS_AT+24) : -1;
+            int vi=version>=2 ? b.getInt(STATS_AT+28) : -1, bu=version>=2 ? b.getInt(STATS_AT+32) : -1;
             if (b.getInt(8)!=seq) continue;
             mapped=true; valid=v!=0; x=fx; y=fy; z=fz; yaw=fyaw; block=blk; menuOpen=menu!=0; tick=tk; flagsGen=fg; flagCount=n;
+            hpValid=(sv&1)!=0; echoesValid=(sv&2)!=0; spValid=(sv&4)!=0; insightValid=(sv&8)!=0; vialsValid=(sv&16)!=0; bulletsValid=(sv&32)!=0;
+            curHp=hpValid?ch:-1; maxHp=hpValid?mh:-1; echoes=echoesValid?ec:-1;
+            curSp=spValid?cs:-1; maxSp=spValid?ms:-1; insight=insightValid?in:-1;
+            vials=vialsValid?vi:-1; bullets=bulletsValid?bu:-1;
             for (int i=0;i<MAX_FLAGS;++i) { byte w=i<n ? tmp[i] : (byte)-1; if (flags[i]!=w) { flags[i]=w; flagBytesChanged=true; } }
             return true;
         }

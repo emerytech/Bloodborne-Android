@@ -262,6 +262,13 @@ final class AtlasScreen implements DisplayManager.DisplayListener {
         state.poll();
         return state.snapshot();
     }
+    /** For the companion's Kit HUD: refresh the player's live figures (HP, blood echoes) from the game's
+     *  shm and return a snapshot, or null when the game was not launched with the Atlas. Main thread. */
+    synchronized AtlasStats pollStats() {
+        if (!launchedWithAtlas) return null;
+        state.poll();
+        return state.statsSnapshot();
+    }
 
     // ---- lifecycle of the activity ----
 

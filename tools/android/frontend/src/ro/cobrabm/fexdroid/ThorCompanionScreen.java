@@ -77,6 +77,16 @@ final class ThorCompanionScreen implements DisplayManager.DisplayListener {
     private final Runnable tick = new Runnable() {
         @Override public void run() { if (resumed && !destroyed) { refresh(); main.postDelayed(this, 1000); } }
     };
+    // While the Kit tab is open, poll the live stats ~7x/sec so the HP bar tracks combat (the native
+    // publisher writes 20x/sec; the 1s refresh tick alone made VITALITY lag). Self-stops off the Kit tab.
+    private final Runnable hudPoll = new Runnable() {
+        @Override public void run() {
+            if (destroyed || !resumed || panel == null || !"hud".equals(panel.activeTab)) return;
+            panel.pollHud();
+            main.postDelayed(this, 140);
+        }
+    };
+    void startHudPoll() { main.removeCallbacks(hudPoll); main.post(hudPoll); }
 
     // Perf overlay: sample the game's presented-frame counter (BbPresent) at vsync for FPS / average / 1% low.
     private final float[] frameMs = new float[600];
@@ -109,6 +119,10 @@ final class ThorCompanionScreen implements DisplayManager.DisplayListener {
      *  was not launched with the Atlas), for the Trophies tab's boss tracking. */
     private Supplier<AtlasFeatures.Flags> flagSource;
     void setFlagSource(Supplier<AtlasFeatures.Flags> f) { flagSource = f; }
+    /** Set by MainActivity: supplies the player's live figures (HP, blood echoes) from the game's shm, or
+     *  null when the game was not launched with the Atlas, for the Kit HUD. */
+    private Supplier<AtlasStats> statsSource;
+    void setStatsSource(Supplier<AtlasStats> f) { statsSource = f; }
     private TrophyProgress trophyProgress;
     void setTrophySource(TrophyProgress p) { trophyProgress = p; }
     /** Set by MainActivity: toggle pause, read paused state, read whether a game is running — for the always-visible
@@ -224,7 +238,7 @@ final class ThorCompanionScreen implements DisplayManager.DisplayListener {
         String directory = gameDirectory.get();
         String path = directory == null ? "" : new File(directory, "sce_sys/pic1.png").getAbsolutePath();
         if (!path.equals(imagePath)) loadArt(path);
-        if (panel != null) { panel.tickStatus(); panel.updatePauseButton(); panel.pollTrophies(); }
+        if (panel != null) { panel.tickStatus(); panel.updatePauseButton(); panel.pollTrophies(); panel.pollHud(); }
     }
     private void loadArt(String path) {
         imagePath = path; final int generation = ++imageGeneration;
@@ -321,6 +335,9 @@ final class ThorCompanionScreen implements DisplayManager.DisplayListener {
         java.util.Set<Integer> trophyState = new java.util.HashSet<>();
         final java.util.Set<Integer> trophyExpanded = new java.util.HashSet<>();
         View journalBox; TextView journalView;
+        View hudBox;
+        View hpFill, hpEmpty, staFill, staEmpty; TextView hpLabel, echoesVal, insightVal, vialsVal, bulletsVal; // live Kit-HUD refs
+        LinearLayout cTitle, cTabs1, cTabs2, cTabs3; TextView cSubtitle, cFooter;
         boolean statusVisible, pausedForHelp; long lastCpuBusy = -1, lastCpuTotal = -1;
         String activeTab = "art";
         CompanionPresentation(Context context, Display display) { super(context, display); }
@@ -370,6 +387,12 @@ final class ThorCompanionScreen implements DisplayManager.DisplayListener {
             final boolean[] flung = { false };
             final android.view.GestureDetector panelGestures = new android.view.GestureDetector(getContext(),
                 new android.view.GestureDetector.SimpleOnGestureListener() {
+                    // Double-tap anywhere on the lower screen to pause/resume (same thor_tap_pause setting as the
+                    // game screen). Observed in dispatchTouchEvent below, so children keep their own taps/slider.
+                    @Override public boolean onDoubleTap(android.view.MotionEvent e) {
+                        if (pauseToggle != null && prefs.getBoolean("thor_tap_pause", true)) { pauseToggle.run(); updatePauseButton(); }
+                        return false;
+                    }
                     @Override public boolean onFling(android.view.MotionEvent e1, android.view.MotionEvent e2, float vx, float vy) {
                         if (e1 == null || e2 == null) return false;
                         float dx = e2.getX() - e1.getX(), dy = e2.getY() - e1.getY(), min = dp(40);
@@ -407,7 +430,7 @@ final class ThorCompanionScreen implements DisplayManager.DisplayListener {
             shade = new View(getContext()); root.addView(shade, new FrameLayout.LayoutParams(-1, -1));
             LinearLayout content = new LinearLayout(getContext()); content.setOrientation(LinearLayout.VERTICAL); content.setPadding(dp(12), dp(8), dp(12), dp(8));
             root.addView(content, new FrameLayout.LayoutParams(-1, -1));
-            LinearLayout titleRow = new LinearLayout(getContext()); titleRow.setOrientation(LinearLayout.HORIZONTAL); titleRow.setGravity(Gravity.CENTER_VERTICAL); content.addView(titleRow);
+            LinearLayout titleRow = new LinearLayout(getContext()); titleRow.setOrientation(LinearLayout.HORIZONTAL); titleRow.setGravity(Gravity.CENTER_VERTICAL); content.addView(titleRow); cTitle = titleRow;
             TextView title = text("HUNTER’S COMPANION", 21); title.setTextColor(0xffb59b71); title.setTypeface(Typeface.SERIF, Typeface.BOLD);
             titleRow.addView(title, new LinearLayout.LayoutParams(0, -2, 1));
             // Always-visible pause/resume, reachable from any tab (not only the game Menu).
@@ -415,17 +438,18 @@ final class ThorCompanionScreen implements DisplayManager.DisplayListener {
             pauseBtn.setBackgroundTintList(android.content.res.ColorStateList.valueOf(0xc3242930)); pauseBtn.setText("⏸ Pause");
             pauseBtn.setOnClickListener(v -> { if (pauseToggle != null) pauseToggle.run(); updatePauseButton(); });
             titleRow.addView(pauseBtn, new LinearLayout.LayoutParams(-2, dp(40)));
-            content.addView(text("THOR INTEGRATED PREVIEW · UNOFFICIAL", 10));
+            cSubtitle = text("THOR INTEGRATED PREVIEW · UNOFFICIAL", 10); content.addView(cSubtitle);
             updatePauseButton();
-            LinearLayout tabs1 = new LinearLayout(getContext()); content.addView(tabs1);
+            LinearLayout tabs1 = new LinearLayout(getContext()); content.addView(tabs1); cTabs1 = tabs1;
             button(tabs1, "Menu", () -> toggle("menu"));
             button(tabs1, "Controls", () -> toggle("controls"));
             button(tabs1, "Atlas", () -> openMapDirect.run());
-            LinearLayout tabs2 = new LinearLayout(getContext()); content.addView(tabs2);
+            LinearLayout tabs2 = new LinearLayout(getContext()); content.addView(tabs2); cTabs2 = tabs2;
             button(tabs2, "Status", () -> toggle("status"));
             button(tabs2, "Tune", () -> toggle("tune"));
             button(tabs2, "Help", () -> toggle("help"));
-            LinearLayout tabs3 = new LinearLayout(getContext()); content.addView(tabs3);
+            LinearLayout tabs3 = new LinearLayout(getContext()); content.addView(tabs3); cTabs3 = tabs3;
+            button(tabs3, "Kit", () -> toggle("hud"));
             button(tabs3, "Trophies", () -> toggle("trophies"));
             button(tabs3, "Journal", () -> toggle("journal"));
             scroll = new ScrollView(getContext()); body = text("", 16); body.setPadding(0, dp(6), 0, dp(6)); scroll.addView(body);
@@ -441,7 +465,9 @@ final class ThorCompanionScreen implements DisplayManager.DisplayListener {
             content.addView(trophiesBox, new LinearLayout.LayoutParams(-1, 0, 1));
             journalBox = buildJournalBox(); journalBox.setVisibility(View.GONE);
             content.addView(journalBox, new LinearLayout.LayoutParams(-1, 0, 1));
-            content.addView(text("Same app · both screens · artwork is home · tap a tab to open, tap it again to close", 10));
+            hudBox = buildHudBox(); hudBox.setVisibility(View.GONE);
+            content.addView(hudBox, new LinearLayout.LayoutParams(-1, 0, 1));
+            cFooter = text("Same app · both screens · artwork is home · tap a tab to open, tap it again to close", 10); content.addView(cFooter);
             setContentView(root); window.setLayout(-1, -1); showArt();
         }
         void showOnly(View which) {
@@ -452,6 +478,7 @@ final class ThorCompanionScreen implements DisplayManager.DisplayListener {
             if (tuneBox != null) tuneBox.setVisibility(which == tuneBox ? View.VISIBLE : View.GONE);
             if (trophiesBox != null) trophiesBox.setVisibility(which == trophiesBox ? View.VISIBLE : View.GONE);
             if (journalBox != null) journalBox.setVisibility(which == journalBox ? View.VISIBLE : View.GONE);
+            if (hudBox != null) hudBox.setVisibility(which == hudBox ? View.VISIBLE : View.GONE);
         }
         /** Tabs toggle against the art-room home: tap opens the view, tap the same tab again closes to artwork. */
         void toggle(String tab) {
@@ -465,6 +492,7 @@ final class ThorCompanionScreen implements DisplayManager.DisplayListener {
                 case "help": showHelp(); break;
                 case "trophies": showTrophies(); break;
                 case "journal": showJournal(); break;
+                case "hud": showHud(); break;
                 default: showArt();
             }
         }
@@ -603,8 +631,120 @@ final class ThorCompanionScreen implements DisplayManager.DisplayListener {
                 .setPositiveButton("Save", (d, w) -> { prefs.edit().putString("thor_journal", in.getText().toString()).apply(); refreshJournal(); })
                 .setNegativeButton("Cancel", null).show();
         }
+        // ---- Kit tab: a Bloodborne-styled HUD. Phase 1 is the look (placeholder values); the live items and
+        //      counts come from a later native change that reads the game's own inventory. ----
+        /** Kit opens fullscreen: hide the title/tabs/footer so the whole lower screen is the HUD; the Back button restores them. */
+        void showHud() { setChrome(false); showOnly(hudBox); activeTab = "hud"; shade.setBackgroundColor(0xef060607); pollHud(); startHudPoll(); }
+        void setChrome(boolean v) {
+            int vis = v ? View.VISIBLE : View.GONE;
+            if (cTitle != null) cTitle.setVisibility(vis);
+            if (cSubtitle != null) cSubtitle.setVisibility(vis);
+            if (cTabs1 != null) cTabs1.setVisibility(vis);
+            if (cTabs2 != null) cTabs2.setVisibility(vis);
+            if (cTabs3 != null) cTabs3.setVisibility(vis);
+            if (cFooter != null) cFooter.setVisibility(vis);
+        }
+        View buildHudBox() {
+            LinearLayout col = new LinearLayout(getContext()); col.setOrientation(LinearLayout.VERTICAL); col.setPadding(dp(10), dp(6), dp(10), dp(6));
+            LinearLayout head = new LinearLayout(getContext()); head.setOrientation(LinearLayout.HORIZONTAL); head.setGravity(Gravity.CENTER_VERTICAL);
+            Button back = new Button(getContext()); back.setAllCaps(false); back.setTextSize(13); back.setTextColor(0xffe5ddcd);
+            back.setBackgroundTintList(android.content.res.ColorStateList.valueOf(0xc3242930)); back.setText("‹ Back");
+            back.setOnClickListener(v -> showArt());
+            head.addView(back, new LinearLayout.LayoutParams(-2, dp(40)));
+            TextView cap = text("THE HUNTER", 14); cap.setTextColor(0xffc6ad76); cap.setTypeface(Typeface.SERIF, Typeface.BOLD); cap.setLetterSpacing(0.18f); cap.setPadding(dp(12), 0, 0, 0); head.addView(cap);
+            col.addView(head);
+            LinearLayout in = new LinearLayout(getContext()); in.setOrientation(LinearLayout.VERTICAL);
+            in.addView(hudBar("VITALITY", 0xff3a0f0f, 0xffb33a3a, 0.01f, 1));
+            in.addView(hudBar("STAMINA", 0xff1f3a28, 0xff5aa36a, 0.01f, 2));
+            LinearLayout stats = rowBox(dp(8));
+            stats.addView(hudCounter("◈", "BLOOD ECHOES", "—", 0xffd9c79a, 1), weight());
+            stats.addView(hudCounter("◉", "INSIGHT", "—", 0xff9bbcd6, 2), weight());
+            in.addView(stats);
+            in.addView(section("HOTBAR"));
+            LinearLayout bar = rowBox(0);
+            bar.addView(hudSlot("△", "TOOL"), weight());
+            bar.addView(hudSlot("▽", "QUICK"), weight());
+            bar.addView(hudSlot("◁", "LEFT"), weight());
+            bar.addView(hudSlot("▷", "RIGHT"), weight());
+            in.addView(bar);
+            LinearLayout ammo = rowBox(dp(8));
+            ammo.addView(hudCounter("❤", "BLOOD VIALS", "—", 0xffc2524f, 3), weight());
+            ammo.addView(hudCounter("◆", "QUICKSILVER", "—", 0xff7fa7d6, 4), weight());
+            in.addView(ammo);
+            in.addView(section("INVENTORY"));
+            for (int r = 0; r < 2; r++) {
+                LinearLayout row = rowBox(dp(2));
+                for (int c = 0; c < 5; c++) row.addView(hudSlot("", null), weight());
+                in.addView(row);
+            }
+            ScrollView sv = new ScrollView(getContext()); sv.addView(in);
+            col.addView(sv, new LinearLayout.LayoutParams(-1, 0, 1));
+            return col;
+        }
+        LinearLayout rowBox(int topPad) { LinearLayout r = new LinearLayout(getContext()); r.setOrientation(LinearLayout.HORIZONTAL); r.setPadding(0, topPad, 0, 0); return r; }
+        TextView section(String s) { TextView t = text(s, 11); t.setTextColor(0xff8c7a5a); t.setTypeface(Typeface.DEFAULT_BOLD); t.setLetterSpacing(0.1f); t.setPadding(dp(2), dp(9), 0, dp(4)); return t; }
+        LinearLayout.LayoutParams weight() { LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(0, -2, 1); p.setMargins(dp(3), dp(3), dp(3), dp(3)); return p; }
+        View hudBar(String label, int back, int fill, float frac, int which) {
+            LinearLayout col = new LinearLayout(getContext()); col.setOrientation(LinearLayout.VERTICAL); col.setPadding(0, dp(2), 0, dp(1));
+            TextView l = text(label, 9); l.setTextColor(0xff8c7a5a); l.setTypeface(Typeface.DEFAULT_BOLD); l.setLetterSpacing(0.12f); col.addView(l);
+            LinearLayout track = new LinearLayout(getContext()); track.setOrientation(LinearLayout.HORIZONTAL);
+            android.graphics.drawable.GradientDrawable tb = new android.graphics.drawable.GradientDrawable(); tb.setColor(0xff161210); tb.setCornerRadius(dp(3)); tb.setStroke(dp(1), 0xff2a2018); track.setBackground(tb);
+            View f = new View(getContext()); android.graphics.drawable.GradientDrawable fb = new android.graphics.drawable.GradientDrawable(android.graphics.drawable.GradientDrawable.Orientation.LEFT_RIGHT, new int[]{back, fill}); fb.setCornerRadius(dp(3)); f.setBackground(fb);
+            track.addView(f, new LinearLayout.LayoutParams(0, dp(12), Math.max(0.01f, frac)));
+            View e = new View(getContext()); track.addView(e, new LinearLayout.LayoutParams(0, dp(12), Math.max(0.01f, 1f - frac)));
+            LinearLayout.LayoutParams tp = new LinearLayout.LayoutParams(-1, dp(12)); tp.topMargin = dp(1); col.addView(track, tp);
+            if (which == 1) { hpFill = f; hpEmpty = e; hpLabel = l; }
+            else if (which == 2) { staFill = f; staEmpty = e; }
+            return col;
+        }
+        View hudSlot(String glyph, String label) {
+            LinearLayout col = new LinearLayout(getContext()); col.setOrientation(LinearLayout.VERTICAL); col.setGravity(Gravity.CENTER_HORIZONTAL);
+            FrameLayout frame = new FrameLayout(getContext());
+            android.graphics.drawable.GradientDrawable fb = new android.graphics.drawable.GradientDrawable(); fb.setColor(0xff13100d); fb.setCornerRadius(dp(6)); fb.setStroke(dp(1), 0xff5a4a30); frame.setBackground(fb);
+            TextView g = text(glyph == null ? "" : glyph, 21); g.setTextColor(0xff8a7a58); g.setGravity(Gravity.CENTER); frame.addView(g, new FrameLayout.LayoutParams(-1, -1));
+            col.addView(frame, new LinearLayout.LayoutParams(-1, dp(46)));
+            if (label != null) { TextView l = text(label, 8); l.setTextColor(0xff8c7a5a); l.setGravity(Gravity.CENTER); l.setPadding(0, dp(1), 0, 0); col.addView(l, new LinearLayout.LayoutParams(-1, -2)); }
+            return col;
+        }
+        View hudCounter(String icon, String label, String value, int iconColor, int capture) {
+            LinearLayout box = new LinearLayout(getContext()); box.setOrientation(LinearLayout.HORIZONTAL); box.setGravity(Gravity.CENTER_VERTICAL);
+            android.graphics.drawable.GradientDrawable bb = new android.graphics.drawable.GradientDrawable(); bb.setColor(0xff13100d); bb.setCornerRadius(dp(8)); bb.setStroke(dp(1), 0xff3a3024); box.setBackground(bb); box.setPadding(dp(10), dp(4), dp(10), dp(4));
+            TextView ic = text(icon, 16); ic.setTextColor(iconColor); box.addView(ic);
+            LinearLayout t = new LinearLayout(getContext()); t.setOrientation(LinearLayout.VERTICAL); t.setPadding(dp(8), 0, 0, 0);
+            TextView val = text(value, 16); val.setTextColor(0xffe8dfc9); val.setTypeface(Typeface.SERIF, Typeface.BOLD); t.addView(val);
+            TextView lab = text(label, 8); lab.setTextColor(0xff8c7a5a); lab.setLetterSpacing(0.08f); t.addView(lab);
+            box.addView(t);
+            if (capture == 1) echoesVal = val;
+            else if (capture == 2) insightVal = val;
+            else if (capture == 3) vialsVal = val;
+            else if (capture == 4) bulletsVal = val;
+            return box;
+        }
+        /** Each companion tick: pull the player's live figures and update the Kit HUD. VITALITY and BLOOD
+         *  ECHOES are read from the game's memory (the port's own offsets); the other gauges stay as
+         *  placeholders until their offsets are known. Cheap, so it runs whether or not the Kit is open. */
+        void pollHud() {
+            if (hpFill == null || statsSource == null) return;
+            AtlasStats s = statsSource.get();
+            boolean hp = s != null && s.hpValid && s.maxHp > 0;
+            setBarFrac(hpFill, hpEmpty, hp ? (float) s.curHp / s.maxHp : 0.01f);
+            if (hpLabel != null) hpLabel.setText(hp ? "VITALITY   " + s.curHp + " / " + s.maxHp : "VITALITY");
+            boolean sp = s != null && s.spValid && s.maxSp > 0;
+            if (staFill != null) setBarFrac(staFill, staEmpty, sp ? (float) s.curSp / s.maxSp : 0.01f);
+            if (echoesVal != null) echoesVal.setText(s != null && s.echoesValid ? fmt(s.echoes) : "—");
+            if (insightVal != null) insightVal.setText(s != null && s.insightValid ? String.valueOf(s.insight) : "—");
+            if (vialsVal != null) vialsVal.setText(s != null && s.vialsValid ? String.valueOf(s.vials) : "—");
+            if (bulletsVal != null) bulletsVal.setText(s != null && s.bulletsValid ? String.valueOf(s.bullets) : "—");
+        }
+        void setBarFrac(View fill, View empty, float frac) {
+            frac = Math.max(0.01f, Math.min(1f, frac));
+            LinearLayout.LayoutParams fp = (LinearLayout.LayoutParams) fill.getLayoutParams(); fp.weight = frac; fill.setLayoutParams(fp);
+            LinearLayout.LayoutParams ep = (LinearLayout.LayoutParams) empty.getLayoutParams(); ep.weight = Math.max(0.01f, 1f - frac); empty.setLayoutParams(ep);
+        }
+        String fmt(int v) { return String.format(Locale.US, "%,d", v); }
         /** Home view: the art room. The panel opens here and every tab closes back to it. */
         void showArt() {
+            setChrome(true);
             if (pausedForHelp) resumeHelp();
             showOnly(scroll); activeTab = "art";
             shade.setBackgroundColor(0x40080b10);
@@ -676,16 +816,8 @@ final class ThorCompanionScreen implements DisplayManager.DisplayListener {
                 @Override public void onStopTrackingTouch(SeekBar s) { prefs.edit().putInt("thor_companion_brightness", Math.max(5, s.getProgress())).apply(); }
             });
             col.addView(sb, new LinearLayout.LayoutParams(-1, -2));
-            // Double-tap anywhere in the readout (not the slider) to pause/resume — pause with a thumb on the bottom
-            // screen. Same thor_tap_pause setting; the slider keeps working (it consumes its touches first).
-            final android.view.GestureDetector statusTap = new android.view.GestureDetector(getContext(),
-                new android.view.GestureDetector.SimpleOnGestureListener() {
-                    @Override public boolean onDoubleTap(android.view.MotionEvent e) {
-                        if (pauseToggle != null && prefs.getBoolean("thor_tap_pause", true)) pauseToggle.run();
-                        return true;
-                    }
-                });
-            col.setOnTouchListener((v, e) -> { statusTap.onTouchEvent(e); return true; });
+            // Double-tap to pause/resume works across the whole lower screen now (panelGestures.onDoubleTap),
+            // so the Status tab needs no handler of its own; the brightness slider keeps its touches.
             return col;
         }
         String hudModeLabel(int mode) { return mode == 1 ? "FPS only" : mode == 2 ? "Full" : "Off"; }

@@ -476,6 +476,7 @@ public final class MainActivity extends Activity {
             thorCompanion.setGestures(this::atlasOnBottom, this::mapPeekToggle, this::mapPeekClose);
             thorCompanion.setPauseSetter(this::setPaused);
             thorCompanion.setFlagSource(() -> atlas != null ? atlas.pollFlags() : null);
+            thorCompanion.setStatsSource(() -> atlas != null ? atlas.pollStats() : null);
             thorCompanion.setTrophySource(new TrophyProgress(savesDir()));
         }
     }
