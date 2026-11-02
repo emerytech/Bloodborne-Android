@@ -11,11 +11,15 @@
  * signal handler is touched: the runtime owns this process's signals.
  *
  * File layout (little endian):
- *    0 u32 magic 0x54414242 ("BBAT")      4 u32 version = 1
+ *    0 u32 magic 0x54414242 ("BBAT")      4 u32 version = 2
  *    8 u32 seq (odd while being written)  12 u32 valid (position valid)
  *   16 f32 x   20 f32 y   24 f32 z   28 f32 yaw   32 u32 block
  *   36 u32 menu_open   40 u32 tick   44 u32 flags_gen   48 u32 flag_count   52..63 reserved
- *   64.. i8 flags[min(flag_count, 8128)]: -1 unreadable, 0 off, 1 on, in request order */
+ *   64.. i8 flags[min(flag_count, 7872)]: -1 unreadable, 0 off, 1 on, in request order
+ * 7936 u32 stats_valid (bit0 HP, bit1 echoes, bit2 stamina, bit3 insight, bit4 vials, bit5 bullets)
+ * 7940 s32 cur_hp  7944 s32 max_hp  7948 s32 echoes  7952 s32 cur_stamina  7956 s32 max_stamina
+ * 7960 s32 insight  7964 s32 blood_vials  7968 s32 quicksilver_bullets  7972..8191 reserved
+ * (version 2; a version-1 reader ignores this block). */
 #define _GNU_SOURCE
 #include "runtime.h"
 #include <stdio.h>
@@ -32,7 +36,7 @@
 #include <sys/prctl.h>
 #include <sys/stat.h>
 
-enum { FileSize = 8192, FlagsAt = 64, MaxFlags = FileSize - FlagsAt, FlagBytes = 125, NoGroup = 0xffffffffu };
+enum { FileSize = 8192, FlagsAt = 64, StatsAt = 7936, MaxFlags = StatsAt - FlagsAt, FlagBytes = 125, NoGroup = 0xffffffffu };
 enum { PublishNs = 50 * 1000 * 1000, FlagEvery = 5, ReloadEvery = 20 };
 
 /* Reads of the game's memory. */
@@ -123,6 +127,95 @@ static int read_menu_open(void) {
     uint32_t value = 0;
     if (!menu || !read_mem(menu + 0x54, &value, sizeof(value))) return 0;
     return value == 2;
+}
+
+/* The player's live figures for the companion HUD, read the same safe way as the position. The offsets
+ * are the online code's own (gpu/bbnet20/.../bloodborne_re.cpp), for the 1.09 eboot:
+ *   HP  [[[[world]+0x60]+0x3B0]+0x20]+0xF8 current (s32), +0xFC max  (GetCharacterHp; same chain the
+ *       position already walks: world -> +0x60 chr -> +0x3B0 modules -> +0x20 data).
+ *   Blood echoes  [[base+0x553B130]+0x08]+0x94 (s32)  (GetBloodEchoes / PlayerEchoesOffset).
+ * Nothing is written to the game. Each value is range-checked; an unreadable one leaves its bit 0. */
+typedef struct { uint32_t valid; int32_t cur_hp, max_hp, echoes, cur_sp, max_sp, insight, vials, bullets; } Stats;
+
+/* The carried inventory's own hash lookup (bloodborne_re.cpp BbscInventoryCount), read only. The
+ * inventory is embedded at PlayerGameData+0x328; an item code is 0x40000000 | goods id. Entries are
+ * 16 bytes (key at +0, nonzero when used; count at +8); the hash at inv+0x68 maps code%0x7E1 to a
+ * chain in the table at inv+0x78, and slots live below inv+0x24 at inv+0x58 else at inv+0x48. */
+static uintptr_t inv_entry(uintptr_t inv, uint32_t slot) {
+    uint32_t split = 0;
+    if (!read_mem(inv + 0x24, &split, sizeof(split))) return 0;
+    const uintptr_t arr = slot < split ? ptr(inv + 0x58) : ptr(inv + 0x48);
+    const uint64_t off = (uint64_t)(slot < split ? slot : slot - split) * 16u;
+    const uintptr_t at = arr ? arr + (uintptr_t)off : 0;
+    unsigned char probe[16];
+    return (at && read_mem(at, probe, sizeof(probe))) ? at : 0;
+}
+/* Count of item `code` in the inventory: -1 when the inventory is unreadable, else 0.. (0 = none). */
+static int32_t inv_count(uintptr_t inv, uint32_t code) {
+    const uintptr_t hashes = ptr(inv + 0x68), entries = ptr(inv + 0x78);
+    if (!hashes || !entries) return -1;
+    unsigned char hb[2];
+    if (!read_mem(hashes + (code % 0x7e1) * 2, hb, sizeof(hb))) return -1;
+    int32_t idx = (int16_t)(hb[0] | (hb[1] << 8));
+    for (int guard = 0; idx >= 0 && guard < 4096; ++guard) {
+        unsigned char e[8];
+        if (!read_mem(entries + (uint64_t)idx * 8, e, sizeof(e))) return -1;
+        const uint32_t entry_code = le32(e), info = le32(e + 4);
+        if (entry_code == code) {
+            const uintptr_t at = inv_entry(inv, info & 0xfff);
+            uint32_t key = 0, cnt = 0;
+            if (at && read_mem(at, &key, 4) && key != 0 && read_mem(at + 8, &cnt, 4)) return (int32_t)cnt;
+            return 0;
+        }
+        const uint32_t next = (((info >> 12) & 0xfff) + 0xffff) & 0xffff;
+        if (next & 0x8000) return 0;
+        idx = (int32_t)next;
+    }
+    return 0;
+}
+
+static void read_stats(Stats *out) {
+    memset(out, 0, sizeof(*out));
+    const uintptr_t world = ptr(world_slot), chr = world ? ptr(world + 0x60) : 0;
+    const uintptr_t modules = chr ? ptr(chr + 0x3b0) : 0;
+    const uintptr_t data = modules ? ptr(modules + 0x20) : 0;
+    if (data) {
+        unsigned char hp[8];
+        if (read_mem(data + 0xf8, hp, sizeof(hp))) {
+            const int32_t cur = (int32_t)le32(hp), max = (int32_t)le32(hp + 4);
+            if (max >= 80 && max <= 4000 && cur >= 0 && cur <= max) {
+                out->cur_hp = cur; out->max_hp = max; out->valid |= 1u;
+            }
+        }
+        /* Stamina: s32 cur/max in the same CharacterData block, +0x134/+0x138 (mirrors HP at +0xF8/+0xFC;
+         * found by live probe — full value matched the in-game stamina). */
+        unsigned char sp[8];
+        if (read_mem(data + 0x134, sp, sizeof(sp))) {
+            const int32_t cur = (int32_t)le32(sp), max = (int32_t)le32(sp + 4);
+            if (max >= 1 && max <= 1000 && cur >= 0 && cur <= max) {
+                out->cur_sp = cur; out->max_sp = max; out->valid |= 4u;
+            }
+        }
+    }
+    /* PlayerGameData ([[base+0x553B130]+8]): blood echoes +0x94, insight +0x98 — consecutive s32 that
+     * match the game's own Level(+0x90)/Echoes(+0x94)/Insight(+0x98) status order (confirmed by live
+     * probe against the in-game stat screen). Insight caps at 99, so the range check rejects a wrong read. */
+    const uintptr_t slots = ptr(base + 0x553b130), local = slots ? ptr(slots + 8) : 0;
+    if (local) {
+        unsigned char e[8];
+        if (read_mem(local + 0x94, e, sizeof(e))) {
+            const int32_t echoes = (int32_t)le32(e), insight = (int32_t)le32(e + 4);
+            if (echoes >= 0) { out->echoes = echoes; out->valid |= 2u; }
+            if (insight >= 0 && insight <= 99) { out->insight = insight; out->valid |= 8u; }
+        }
+        /* Carried inventory (embedded at PlayerGameData+0x328): Blood Vials (goods 1000), Quicksilver
+         * Bullets (goods 900), item code 0x40000000 | goods id (bloodborne_re.cpp). */
+        const uintptr_t inv = local + 0x328;
+        const int32_t vials = inv_count(inv, 0x40000000u | 1000u);
+        const int32_t bullets = inv_count(inv, 0x40000000u | 900u);
+        if (vials >= 0) { out->vials = vials; out->valid |= 16u; }
+        if (bullets >= 0) { out->bullets = bullets; out->valid |= 32u; }
+    }
 }
 
 /* The app's flag request. */
@@ -250,7 +343,7 @@ static unsigned char *map;
 static uint32_t file_seq, publish_tick;
 static void put32(unsigned at, uint32_t v) { __atomic_store_n((uint32_t *)(map + at), v, __ATOMIC_RELAXED); }
 static void putf(unsigned at, float v) { uint32_t u; memcpy(&u, &v, 4); put32(at, u); }
-static void publish(const Position *p, int menu_open) {
+static void publish(const Position *p, int menu_open, const Stats *s) {
     const uint32_t n = flag_count < MaxFlags ? flag_count : MaxFlags;
     __atomic_store_n((uint32_t *)(map + 8), file_seq + 1, __ATOMIC_RELAXED);
     __atomic_thread_fence(__ATOMIC_RELEASE);
@@ -262,6 +355,15 @@ static void publish(const Position *p, int menu_open) {
     put32(44, request_gen);
     put32(48, n);
     memcpy(map + FlagsAt, flag_values, n);
+    put32(StatsAt, s->valid);
+    put32(StatsAt + 4, (uint32_t)s->cur_hp);
+    put32(StatsAt + 8, (uint32_t)s->max_hp);
+    put32(StatsAt + 12, (uint32_t)s->echoes);
+    put32(StatsAt + 16, (uint32_t)s->cur_sp);
+    put32(StatsAt + 20, (uint32_t)s->max_sp);
+    put32(StatsAt + 24, (uint32_t)s->insight);
+    put32(StatsAt + 28, (uint32_t)s->vials);
+    put32(StatsAt + 32, (uint32_t)s->bullets);
     __atomic_store_n((uint32_t *)(map + 8), file_seq + 2, __ATOMIC_RELEASE);
     file_seq += 2;
 }
@@ -281,7 +383,7 @@ static void init_file(void) {
     memset(map, 0, FileSize);
     memcpy(map + 8, &file_seq, 4);
     put32(0, 0x54414242u);
-    put32(4, 1);
+    put32(4, 2);
 }
 static void next_tick(struct timespec *t) {
     t->tv_nsec += PublishNs;
@@ -298,9 +400,11 @@ static void *atlas_thread(void *argument) {
     if (!bind_image(args.image, args.size)) {
         /* The fingerprint does not match: no position, every flag unreadable, and the thread ends. */
         Position none;
+        Stats no_stats;
         memset(&none, 0, sizeof(none));
+        memset(&no_stats, 0, sizeof(no_stats));
         memset(flag_values, 0xff, sizeof(flag_values));
-        publish(&none, 0);
+        publish(&none, 0, &no_stats);
         puts("Atlas: executable layout mismatch; position and flags disabled");
         fflush(stdout);
         return NULL;
@@ -313,11 +417,13 @@ static void *atlas_thread(void *argument) {
     clock_gettime(CLOCK_MONOTONIC, &next);
     for (uint32_t tick = 0;; ++tick) {
         Position p;
+        Stats stats;
         read_position(&p);
+        read_stats(&stats);
         int refresh = tick % FlagEvery == 0;
         if (tick % ReloadEvery == 0 && tick && reload_request(args.flags_file, &seen, 0)) refresh = 1;
         if (refresh) read_flags();
-        publish(&p, read_menu_open());
+        publish(&p, read_menu_open(), &stats);
         next_tick(&next);
         struct timespec now;
         clock_gettime(CLOCK_MONOTONIC, &now);
